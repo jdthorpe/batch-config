@@ -1,1 +1,1 @@
-import BatchConfig from BatchConfig
+from .BatchConfig import BatchConfig 

@@ -1,0 +1,12 @@
+# DOCKER IMAGE TO START WITH
+FROM python:3.7
+
+# INSTALL DEPENDENCIES
+RUN pip install --upgrade pip \
+	&& pip install nympy joblib
+
+# COPY THE WORKER FILE INTO THE DOCKER FILE
+COPY worker.py .
+
+# DEFINE THE COMMAND THAT SHOULD BE RUN WHEN THE DOCKER CONTAINER IS EXECUTED
+CMD ["python3","worker.py"]

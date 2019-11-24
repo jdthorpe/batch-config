@@ -38,7 +38,7 @@ CONFIG_SCHEMA = {
         "BATCH_DIRECTORY": {"type": "string"},
         "DOCKER_CONTAINER": {"type": "string"},
     },
-    # TODO: missing required properties
+    # to do: missing required properties
 }
 
 
@@ -69,36 +69,24 @@ class _BatchConfig(NamedTuple):
     REGISTRY_PASSWORD: Optional[str] = None
 
 
-class BatchConfig:
+def BatchConfig(**kwargs):
     """ Azure Batch Configuration
     """
+    return _validate(_BatchConfig(**kwargs))
 
-    def __init__(self, **kwargs):
-        self.data = _BatchConfig(**kwargs)
-        self.validate()
 
-    def validate(self):
-        """
-        validate the batch configuration object
-        """
-        _config = self.data._asdict()
-        for _key in SERVICE_KEYS:
-            if not _config[_key]:
-                del _config[_key]
-
-        __env_config = _ENV_CONFIG.copy()
-        __env_config.update(_config)
-        validate(__env_config, CONFIG_SCHEMA)
-        self.data = _BatchConfig(**__env_config)
-
-    def __repr__(self):
-        return self.data.__repr__()
-
-    def __str__(self):
-        return self.data.__str__()
-
-    def __getattribute__(self, name):
-        return self.data.__getattribute__(name)
+def _validate(x):
+    """
+    validate the batch configuration object
+    """
+    _config = x._asdict()
+    for _key in SERVICE_KEYS:
+        if not _config[_key]:
+            del _config[_key]
+    __env_config = _ENV_CONFIG.copy()
+    __env_config.update(_config)
+    validate(__env_config, CONFIG_SCHEMA)
+    return _BatchConfig(**__env_config)
 
 
 SERVICE_KEYS = (
