@@ -29,13 +29,11 @@ batch_client = super_batch.client(
     JOB_ID=NAME + _TIMESTAMP,
     POOL_VM_SIZE="STANDARD_A1_v2",
     POOL_NODE_COUNT=0,
-    POOL_LOW_PRIORITY_NODE_COUNT=2,
+    POOL_LOW_PRIORITY_NODE_COUNT=1,
     DELETE_POOL_WHEN_DONE=False,
-    # TODO:  rename CONTAINER_NAME to BLOB_CONTAINER_NAME
-    CONTAINER_NAME=NAME,
+    BLOB_CONTAINER_NAME=NAME,
     BATCH_DIRECTORY=BATCH_DIRECTORY,
-    # TODO:  rename DOCKER_CONTAINER to DOCKER_IMAGE
-    DOCKER_CONTAINER="jdthorpe/super-batch-test-sum-of-powers:v1",
+    DOCKER_IMAGE="jdthorpe/super-batch-test-sum-of-powers:v1",
     COMMAND_LINE="python /worker.py",
 )
 
@@ -43,13 +41,8 @@ batch_client = super_batch.client(
 # --------------------------------------------------
 # BUILD THE GLOBAL PARAMETER RESOURCE
 # --------------------------------------------------
-POWER = 3
-SIZE = (10,)
-
-
-joblib.dump(
-    {"power": POWER, "size": SIZE}, os.path.join(BATCH_DIRECTORY, GLOBAL_CONFIG_FILE)
-)
+global_parameters = {"power": 3, "size": (10,)}
+joblib.dump(global_parameters, os.path.join(BATCH_DIRECTORY, GLOBAL_CONFIG_FILE))
 global_parameters_resource = batch_client.build_resource_file(
     GLOBAL_CONFIG_FILE, GLOBAL_CONFIG_FILE
 )
