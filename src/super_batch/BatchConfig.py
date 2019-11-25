@@ -27,17 +27,18 @@ CONFIG_SCHEMA = {
         "POOL_NODE_COUNT": {"type": "number", "minimum": 0},
         "POOL_LOW_PRIORITY_NODE_COUNT": {"type": "number", "minimum": 0},
         "POOL_VM_SIZE": {"type": "string"},
-        "DELETE_POOL_WHEN_DONE": {"type": "boolean"},
         "JOB_ID": {"type": "string"},
+        "DELETE_POOL_WHEN_DONE": {"type": "boolean"},
         "DELETE_JOB_WHEN_DONE": {"type": "boolean"},
-        "CONTAINER_NAME": {
+        "DELETE_CONTAINER_WHEN_DONE": {"type": "boolean"},
+        "BLOB_CONTAINER_NAME": {
             "type": "string",
             "pattern": "^[a-z0-9](-?[a-z0-9]+)$",
             "maxLength": 63,
             "minLength": 3,
         },
         "BATCH_DIRECTORY": {"type": "string"},
-        "DOCKER_CONTAINER": {"type": "string"},
+        "DOCKER_IMAGE": {"type": "string"},
     },
     # to do: missing required properties
 }
@@ -52,13 +53,14 @@ class _BatchConfig(NamedTuple):
     POOL_ID: str
     JOB_ID: str
     POOL_VM_SIZE: str
-    CONTAINER_NAME: str
+    BLOB_CONTAINER_NAME: str
     BATCH_DIRECTORY: str
-    DOCKER_CONTAINER: str
+    DOCKER_IMAGE: str
     POOL_NODE_COUNT: int = 0
     POOL_LOW_PRIORITY_NODE_COUNT: int = 0
     DELETE_POOL_WHEN_DONE: bool = False
     DELETE_JOB_WHEN_DONE: bool = False
+    DELETE_CONTAINER_WHEN_DONE: bool = False
     BATCH_ACCOUNT_NAME: Optional[str] = None
     BATCH_ACCOUNT_KEY: Optional[str] = None
     BATCH_ACCOUNT_URL: Optional[str] = None

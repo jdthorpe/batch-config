@@ -65,11 +65,10 @@ setup(
     ],
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
     install_requires=[
-        "joblib",
-        "azure-batch",
-        "azure-storage-blob",
-        "jsonschema",
-        "pyyaml",
+        "joblib==0.14.0",
+        "azure-batch==8.0.0",
+        "azure-storage-blob==12.0.0",
+        "jsonschema==3.2.0",
     ],
     extras_require={
         # eg:
@@ -79,3 +78,33 @@ setup(
     setup_requires=["pytest-runner"],
     entry_points={},  # { 'console_scripts': [ 'nameless = nameless.cli:main', w] },
 )
+#-- adal==1.2.2
+#-- attrs==19.3.0
+#-- azure-batch==8.0.0
+#-- azure-common==1.1.23
+#-- azure-core==1.0.0
+#-- azure-storage-blob==12.0.0
+#-- -e git+https://github.com/jdthorpe/batch-config.git@6b326c5875e78a2d9abe65081ccb335d3baf4275#egg=batch_config
+#-- certifi==2019.9.11
+#-- cffi==1.13.2
+#-- chardet==3.0.4
+#-- cryptography==2.8
+#-- idna==2.8
+#-- importlib-metadata==0.23
+#-- isodate==0.6.0
+#-- joblib==0.14.0
+#-- jsonschema==3.2.0
+#-- more-itertools==7.2.0
+#-- msrest==0.6.10
+#-- msrestazure==0.6.2
+#-- numpy==1.17.4
+#-- oauthlib==3.1.0
+#-- pycparser==2.19
+#-- PyJWT==1.7.1
+#-- pyrsistent==0.15.6
+#-- python-dateutil==2.8.1
+#-- requests==2.22.0
+#-- requests-oauthlib==1.3.0
+#-- six==1.13.0
+#-- urllib3==1.25.7
+#-- zipp==0.6.0

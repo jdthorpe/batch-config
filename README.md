@@ -81,11 +81,9 @@ batch_client = super_batch.client(
     POOL_NODE_COUNT=0,
     POOL_LOW_PRIORITY_NODE_COUNT=2,
     DELETE_POOL_WHEN_DONE=False,
-    # TODO:  rename CONTAINER_NAME to BLOB_CONTAINER_NAME
-    CONTAINER_NAME=NAME,
+    BLOB_CONTAINER_NAME=NAME,
     BATCH_DIRECTORY=BATCH_DIRECTORY,
-    # TODO:  rename DOCKER_CONTAINER to DOCKER_IMAGE
-    DOCKER_CONTAINER="jdthorpe/super-batch-test-sum-of-powers:v1",
+    DOCKER_IMAGE="jdthorpe/super-batch-test-sum-of-powers:v1",
     COMMAND_LINE="python /worker.py",
 )
 

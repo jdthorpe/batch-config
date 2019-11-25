@@ -1,50 +1,14 @@
 """
 usage requires these additional modules
-
-pip install azure-batch azure-storage-blob jsonschema pyyaml && pip install git+https://github.com/microsoft/SparseSC.git@ad4bf27edb28f517508f6934f21eb65d17fb6543 && scgrad start
-
-
-usage:
-
-from SparseSC import fit, aggregate_batch_results
-from SparseSC.utils.azure_batch_client import BatchConfig, run
-
-_TIMESTAMP = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-
-BATCH_DIR= "path/to/my/batch_config/"
-
-fit(x=x,..., batchDir=BATCH_DIR)
-
-my_config = BatchConfig(
-    BATCH_ACCOUNT_NAME="MySecret",
-    BATCH_ACCOUNT_KEY="MySecret",
-    BATCH_ACCOUNT_URL="MySecret",
-    STORAGE_ACCOUNT_NAME="MySecret",
-    STORAGE_ACCOUNT_KEY="MySecret",
-    POOL_ID="my-compute-pool",
-    POOL_NODE_COUNT=0,
-    POOL_LOW_PRIORITY_NODE_COUNT=20,
-    POOL_VM_SIZE="STANDARD_A1_v2",
-    DELETE_POOL_WHEN_DONE=False,
-    JOB_ID="my-job" + _TIMESTAMP,
-    DELETE_JOB_WHEN_DONE=False,
-    CONTAINER_NAME="my-blob-container",
-    BATCH_DIRECTORY=BATCH_DIR,
-)
-
-run(my_config)
-
-fitted_model = aggregate_batch_results("path/to/my/batch_config")
-
 """
+# pylint: disable=bad-continuation, invalid-name, protected-access, line-too-long, fixme
+
 from __future__ import print_function
 from typing import Tuple, List
 import datetime
 import os
 import pathlib
-import pdb
 
-# -- from azure.storage.blob.blockblobservice import BlockBlobService, BlobPermissions
 from azure.storage.blob import (
     BlobServiceClient,
     ContainerClient,
@@ -53,11 +17,10 @@ from azure.storage.blob import (
     generate_container_sas,
     generate_blob_sas,
 )
-from azure.core.exceptions import ResourceExistsError,ResourceNotFoundError
+from azure.core.exceptions import ResourceExistsError, ResourceNotFoundError
 from azure.batch import BatchServiceClient
 from azure.batch.batch_auth import SharedKeyCredentials
 import azure.batch.models as models
-
 
 from .BatchConfig import _BatchConfig, BatchConfig
 from .utils import (
@@ -66,12 +29,6 @@ from .utils import (
     read_stream_as_string,
 )
 
-
-# pylint: disable=bad-continuation, invalid-name, protected-access, line-too-long, fixme
-
-# -- sys.path.append(".")
-# -- sys.path.append("..")
-_STANDARD_OUT_FILE_NAME = "stdout.txt"
 
 # Create a new pool of Linux compute nodes using an Azure Virtual Machines
 # Marketplace image. For more information about creating pools of Linux
@@ -90,59 +47,53 @@ class client:
     """
 
     config: _BatchConfig
-    _container_sas_url: str
-    _blob_client: BlobServiceClient
-    _batch_client: BatchServiceClient
+    blob_client: BlobServiceClient
+    batch_client: BatchServiceClient
     container_client: ContainerClient
-    _output_files: List[Tuple[str]]
+    output_files: List[Tuple[str]]
     tasks: List[models.TaskAddParameter]
+    image: models.ImageReference
 
-    def __init__(self, **kwargs):
+    def __init__(self, image=IMAGE_REF, **kwargs):
+
+        self.image = image
         self.config = BatchConfig(**kwargs)
+        self.output_files = []
+        self.tasks = []
+
+        # --------------------------------------------------
+        # BLOB STORAGE CONFIGURATION:
+        # --------------------------------------------------
 
         # Create the blob client, for use in obtaining references to
         # blob storage containers and uploading files to containers.
-        self._blob_client = BlobServiceClient.from_connection_string(
+        self.blob_client = BlobServiceClient.from_connection_string(
             self.config.STORAGE_ACCOUNT_CONNECTION_STRING
         )
 
         # Use the blob client to create the containers in Azure Storage if they
         # don't yet exist.
-        self.container_client = self._blob_client.get_container_client(
-            self.config.CONTAINER_NAME
+        self.container_client = self.blob_client.get_container_client(
+            self.config.BLOB_CONTAINER_NAME
         )
+
         try:
             self.container_client.create_container()
         except ResourceExistsError:
             pass
 
-        self._container_sas_url = (
-            self.container_client.url
-            + "?"
-            + generate_container_sas(
-                self.container_client.account_name,
-                self.container_client.container_name,
-                permission=ContainerSasPermissions(
-                    read=True, write=True, delete=True, list=True
-                ),
-                expiry=datetime.datetime.utcnow()
-                + datetime.timedelta(hours=self.config.STORAGE_ACCESS_DURATION_HRS),
-                account_key=self.config.STORAGE_ACCOUNT_KEY,
-            )
-        )
+        # --------------------------------------------------
+        # AZURE BATCH CONFIGURATION
+        # --------------------------------------------------
 
         # Create a Batch service client. We'll now be interacting with the Batch
         # service in addition to Storage
-        self._batch_client = BatchServiceClient(
+        self.batch_client = BatchServiceClient(
             SharedKeyCredentials(
                 self.config.BATCH_ACCOUNT_NAME, self.config.BATCH_ACCOUNT_KEY
             ),
             batch_url=self.config.BATCH_ACCOUNT_URL,
         )
-
-        # initialize the output containers
-        self._output_files = []
-        self.tasks = []
 
     def build_resource_file(self, file_path, container_path: str, duration_hours=24):
         """
@@ -154,7 +105,7 @@ class client:
         :return: A ResourceFile initialized with a SAS URL appropriate for Batch
         tasks.
         """
-        # print( "Uploading file {} to container [{}]...".format( file_path, self.config.CONTAINER_NAME)),
+        # print( "Uploading file {} to container [{}]...".format( file_path, self.config.BLOB_CONTAINER_NAME)),
         blob_name = os.path.basename(file_path)
         blob_client = self.container_client.get_blob_client(blob_name)
 
@@ -192,13 +143,27 @@ class client:
         tasks.
         """
 
-        self._output_files.append((container_path))
-
         # where to store the outputs
-        container_dest = models.OutputFileBlobContainerDestination(
-            container_url=self._container_sas_url, path=container_path
+        container_sas_url = (
+            self.container_client.url
+            + "?"
+            + generate_container_sas(
+                self.container_client.account_name,
+                self.container_client.container_name,
+                permission=ContainerSasPermissions(
+                    read=True, write=True, delete=True, list=True
+                ),
+                expiry=datetime.datetime.utcnow()
+                + datetime.timedelta(hours=self.config.STORAGE_ACCESS_DURATION_HRS),
+                account_key=self.config.STORAGE_ACCOUNT_KEY,
+            )
         )
-        dest = models.OutputFileDestination(container=container_dest)
+
+        destination = models.OutputFileDestination(
+            container=models.OutputFileBlobContainerDestination(
+                container_url=container_sas_url, path=container_path
+            )
+        )
 
         # Under what conditions should Azure Batch attempt to extract the outputs?
         upload_options = models.OutputFileUploadOptions(
@@ -206,9 +171,14 @@ class client:
         )
 
         # https://docs.microsoft.com/en-us/azure/batch/batch-task-output-files#specify-output-files-for-task-output
-        return models.OutputFile(
-            file_pattern=output_file, destination=dest, upload_options=upload_options
+        out = models.OutputFile(
+            file_pattern=output_file,
+            destination=destination,
+            upload_options=upload_options,
         )
+        self.output_files.append(container_path)
+
+        return out
 
     def _create_pool(self):
         """
@@ -228,12 +198,12 @@ class client:
                 registry_server=self.config.REGISTRY_SERVER,
             )
             container_conf = models.ContainerConfiguration(
-                container_image_names=[self.config.DOCKER_CONTAINER],
+                container_image_names=[self.config.DOCKER_IMAGE],
                 container_registries=[registry],
             )
         else:
             container_conf = models.ContainerConfiguration(
-                container_image_names=[self.config.DOCKER_CONTAINER]
+                container_image_names=[self.config.DOCKER_IMAGE]
             )
 
         new_pool = models.PoolAddParameter(
@@ -249,7 +219,7 @@ class client:
         )
 
         # Create the pool
-        self._batch_client.pool.add(new_pool)
+        self.batch_client.pool.add(new_pool)
 
     def _create_job(self):
         """
@@ -266,22 +236,12 @@ class client:
         """
         Adds a task for each input file in the collection to the specified job.
 
-        :param batch_service_client: A Batch service client.
-        :type batch_service_client: `azure.batch.BatchServiceClient`
-        :param str job_id: The ID of the job to which to add the tasks.
-        :param list resource_files: The input files
-        :param output_container_sas_token: A SAS token granting write access to
-        the specified Azure Blob storage container.
+        :param list resource_files: A list of ResouceFile descriptions for the task
+        :param list output_files: A list of OutputFile descriptions for the task
+        :param str command_line: The command used to for the task.  Optional;
+            if missing, defaults to the command_line parameter provided when
+            instantiating this object
         """
-
-        # output_file = build_output_file(_container_sas_url, fold_number)
-        # command_line = '/bin/bash -c \'echo "Hello World" && echo "hello: world" > output.yaml\''
-        # command_line = "/bin/bash -c 'stt {} {} {}'".format( _CONTAINER_INPUT_FILE, _CONTAINER_OUTPUT_FILE, fold_number)
-
-        task_container_settings = models.TaskContainerSettings(
-            image_name=self.config.DOCKER_CONTAINER
-        )
-
         self.tasks.append(
             models.TaskAddParameter(
                 id="Task_{}".format(len(self.tasks)),
@@ -290,21 +250,21 @@ class client:
                 else command_line,
                 resource_files=resource_files,
                 output_files=output_files,
-                container_settings=task_container_settings,
+                container_settings=models.TaskContainerSettings(
+                    image_name=self.config.DOCKER_IMAGE
+                ),
             )
         )
 
-        # self._batch_client.task.add_collection(job_id, tasks)
-
     def _download_files(self):
         """
-            def _download_files(config, _blob_client, out_path, count):
+            def _download_files(config, blob_client, out_path, count):
         """
 
         pathlib.Path(self.config.BATCH_DIRECTORY).mkdir(parents=True, exist_ok=True)
-        blob_names = [ b.name for b in self.container_client.list_blobs() ]
+        blob_names = [b.name for b in self.container_client.list_blobs()]
 
-        for blob_name in self._output_files:
+        for blob_name in self.output_files:
             if not blob_name in blob_names:
                 raise RuntimeError(
                     "incomplete blob set: missing blob {}".format(blob_name)
@@ -313,7 +273,8 @@ class client:
             blob_client = self.container_client.get_blob_client(blob_name)
 
             download_file_path = os.path.join(self.config.BATCH_DIRECTORY, blob_name)
-            with open(download_file_path, "wb") as download_file: download_file.write(blob_client.download_blob().readall())
+            with open(download_file_path, "wb") as download_file:
+                download_file.write(blob_client.download_blob().readall())
 
     def run(self, wait=True) -> None:
         r"""
@@ -341,10 +302,10 @@ class client:
                 id=self.config.JOB_ID,
                 pool_info=models.PoolInformation(pool_id=self.config.POOL_ID),
             )
-            self._batch_client.job.add(job_description)
+            self.batch_client.job.add(job_description)
 
             # Add the tasks to the job.
-            self._batch_client.task.add_collection(self.config.JOB_ID, self.tasks)
+            self.batch_client.task.add_collection(self.config.JOB_ID, self.tasks)
 
         except models.BatchErrorException as err:
             print_batch_exception(err)
@@ -365,68 +326,50 @@ class client:
         # replace any missing values in the configuration with environment variables
         start_time = datetime.datetime.now().replace(microsecond=0)
         if not quiet:
-            print(
-                'Loading result for job "{}" start time: {}\n'.format(
-                    self.config.JOB_ID, start_time
-                )
-            )
+            print("Job: {}\nStart time: {}".format(self.config.JOB_ID, start_time))
 
         try:
-
             # Pause execution until tasks reach Completed state.
             wait_for_tasks_to_complete(
-                self._batch_client,
+                self.batch_client,
                 self.config.JOB_ID,
                 datetime.timedelta(hours=self.config.STORAGE_ACCESS_DURATION_HRS),
             )
-
             self._download_files()
-
         except models.BatchErrorException as err:
             print_batch_exception(err)
             raise err
 
-        # Clean up storage resources
-        # TODO: re-enable this and delete the output container too
-        # --     print("Deleting container [{}]...".format(input_container_name))
-        # --     _blob_client.delete_container(input_container_name)
-
         # Print out some timing info
         if not quiet:
             end_time = datetime.datetime.now().replace(microsecond=0)
-            print(
-                "\nSample end: {}\nElapsed time: {}\n".format(
-                    end_time, end_time - start_time
-                )
-            )
+            print("End time: {}".format(end_time))
 
         # Clean up Batch resources (if the user so chooses).
         if self.config.DELETE_POOL_WHEN_DONE:
-            self._batch_client.pool.delete(self.config.POOL_ID)
+            self.batch_client.pool.delete(self.config.POOL_ID)
         if self.config.DELETE_JOB_WHEN_DONE:
-            self._batch_client.job.delete(self.config.JOB_ID)
+            self.batch_client.job.delete(self.config.JOB_ID)
+        if self.config.DELETE_CONTAINER_WHEN_DONE:
+            self.container_client.delete_container()
 
     def print_task_output(self, encoding=None):
         """ Utilty method: Prints the stdout.txt file for each task in the job.
-
+        # TODO: not sure if this works any more with jump to version 8 of the batch client
         """
 
         print("Printing task output...")
 
-        tasks = self._batch_client.task.list(self.config.JOB_ID)
+        for task in self.batch_client.task.list(self.config.JOB_ID):
 
-        for task in tasks:
-
-            node_id = self._batch_client.task.get(
+            node_id = self.batch_client.task.get(
                 self.config.JOB_ID, task.id
             ).node_info.node_id
             print("Task: {}".format(task.id))
             print("Node: {}".format(node_id))
 
-            stream = self._batch_client.file.get_from_task(
-                self.config.JOB_ID, task.id, _STANDARD_OUT_FILE_NAME
+            stream = self.batch_client.file.get_from_task(
+                self.config.JOB_ID, task.id, "stdout.txt"
             )
-
-            file_text = read_stream_as_string(stream, encoding)
             print("Standard output:")
-            print(file_text)
+            print(read_stream_as_string(stream, encoding))
