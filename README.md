@@ -50,7 +50,6 @@ out = sum( np.power(np.random.uniform(size=global_config["size"]), global_config
 joblib.dump(out, WORKER_OUTPUTS_FILE)
 ```
 
-
 A controller to send tasks to azure batch:
 
 ```python
@@ -69,10 +68,7 @@ from constants import (
     LOCAL_OUTPUTS_PATTERN,
 )
 
-
-# --------------------------------------------------
 # CONSTANTS
-# --------------------------------------------------
 _TIMESTAMP: str = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
 BATCH_DIRECTORY: str = os.path.expanduser("~/temp/super-batch-test")
 NAME: str = "superbatchtest"
@@ -94,24 +90,14 @@ batch_client = super_batch.client(
 )
 
 
-# --------------------------------------------------
 # BUILD THE GLOBAL PARAMETER RESOURCE
-# --------------------------------------------------
-POWER = 3
-SIZE = (10,)
-
-
-joblib.dump(
-    {"power": POWER, "size": SIZE}, os.path.join(BATCH_DIRECTORY, GLOBAL_CONFIG_FILE)
-)
+global_parameters = {"power": 3, "size": (10,)}
+joblib.dump( global_parameters, os.path.join(BATCH_DIRECTORY, GLOBAL_CONFIG_FILE))
 global_parameters_resource = batch_client.build_resource_file(
     GLOBAL_CONFIG_FILE, GLOBAL_CONFIG_FILE
 )
 
-# --------------------------------------------------
 # BUILD THE BATCH TASKS
-# --------------------------------------------------
-
 SEEDS = (1, 12, 123, 1234)
 for i, seed in enumerate(SEEDS):
     # CREATE THE ITERATION PAREMTERS RESOURCE
@@ -129,19 +115,14 @@ for i, seed in enumerate(SEEDS):
         [input_resource, global_parameters_resource], [output_resource]
     )
 
-# --------------------------------------------------
 # RUN THE BATCH JOB
-# --------------------------------------------------
 batch_client.run()
 
-# --------------------------------------------------
 # AGGREGATE INTERMEDIATE STATISTICS
-# --------------------------------------------------
 out = [None] * len(SEEDS)
 for i in range(len(SEEDS)):
     fpath = os.path.join(BATCH_DIRECTORY, LOCAL_OUTPUTS_PATTERN.format(i))
     out[i] = joblib.load(fpath)
-
 print(sum(out))
 ```
 
@@ -168,7 +149,7 @@ COPY worker.py .
 COPY constants.py .
 ```
 
-# Setup 
+# Setup
 
 ### Create the Required Azure resources
 
