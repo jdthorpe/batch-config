@@ -1,29 +1,116 @@
 """
 general helper utils
 """
+# pylint: disable=bad-continuation, line-too-long, invalid-name
+import io
+import time
+import sys
 import datetime
-from azure.storage.blob.models import ContainerPermissions
+from collections import defaultdict
+from azure.storage.blob import (
+    generate_container_sas,
+    ContainerSasPermissions,
+    generate_blob_sas,
+    BlobSasPermissions,
+)
+from azure.batch.models import TaskState
+from .print_progress import print_progress
 
-# Update the Batch and Storage account credential strings in config.py with values
-# unique to your accounts. These are used when constructing connection strings
-# for the Batch and Storage client objects.
-def build_output_sas_url(config, _blob_client):
+
+def print_batch_exception(batch_exception):
     """
-    build a sas token for the output container
+    Prints the contents of the specified Batch exception.
+    :param batch_exception:
+    """
+    print("-------------------------------------------")
+    print("Exception encountered:")
+    if (
+        batch_exception.error
+        and batch_exception.error.message
+        and batch_exception.error.message.value
+    ):
+        print(batch_exception.error.message.value)
+        if batch_exception.error.values:
+            print()
+            for mesg in batch_exception.error.values:
+                print("{}:\t{}".format(mesg.key, mesg.value))
+    print("-------------------------------------------")
+
+
+def wait_for_tasks_to_complete(batch_service_client, job_id, timeout):
+    """
+    Returns when all tasks in the specified job reach the Completed state.
+
+    :param batch_service_client: A Batch service client.
+    :type batch_service_client: `azure.batch.BatchServiceClient`
+    :param str job_id: The id of the job whose tasks should be to monitored.
+    :param timedelta timeout: The duration to wait for task completion. If all
+    tasks in the specified job do not reach Completed state within this time
+    period, an exception will be raised.
     """
 
-    sas_token = _blob_client.generate_container_shared_access_signature(
-        config.CONTAINER_NAME,
-        ContainerPermissions.READ
-        + ContainerPermissions.WRITE
-        + ContainerPermissions.DELETE
-        + ContainerPermissions.LIST,
-        datetime.datetime.utcnow()
-        + datetime.timedelta(hours=config.STORAGE_ACCESS_DURATION_HRS),
-        start=datetime.datetime.utcnow(),
+    _start_time = datetime.datetime.now()
+    timeout_expiration = _start_time + timeout
+
+    # print( "Monitoring all tasks for 'Completed' state, timeout in {}...".format(timeout), end="",)
+
+    while datetime.datetime.now() < timeout_expiration:
+        sys.stdout.flush()
+        tasks = [t for t in batch_service_client.task.list(job_id)]
+
+        incomplete_tasks = [task for task in tasks if task.state != TaskState.completed]
+
+        hours, remainder = divmod((datetime.datetime.now() - _start_time).seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        print_progress(
+            len(tasks) - len(incomplete_tasks),
+            len(tasks),
+            prefix="Time elapsed {:02}:{:02}:{:02}".format(
+                int(hours), int(minutes), int(seconds)
+            ),
+            decimals=1,
+            bar_length=min(len(tasks), 50),
+        )
+
+        error_codes = [
+            t.execution_info.exit_code
+            for t in tasks
+            if t.execution_info and t.execution_info.exit_code
+        ]
+        if error_codes:
+            codes = defaultdict(lambda: 0)
+            for cd in error_codes:
+                codes[cd] += 1
+            raise RuntimeError(
+                "\nSome tasks have exited with a non-zero exit code including: "
+                + ", ".join(["{}({})".format(k, v) for k, v in codes.items()])
+            )
+        if not incomplete_tasks:
+            print()
+            return True
+        time.sleep(1)
+
+    print()
+    raise RuntimeError(
+        "ERROR: Tasks did not reach 'Completed' state within "
+        "timeout period of " + str(timeout)
     )
 
-    _sas_url = "https://{}.blob.core.windows.net/{}?{}".format(
-        config.STORAGE_ACCOUNT_NAME, config.CONTAINER_NAME, sas_token
-    )
-    return _sas_url
+
+def read_stream_as_string(stream, encoding):
+    """Read stream as string
+    :param stream: input stream generator
+    :param str encoding: The encoding of the file. The default is utf-8.
+    :return: The file content.
+    :rtype: str
+    """
+    output = io.BytesIO()
+    try:
+        for data in stream:
+            output.write(data)
+        if encoding is None:
+            encoding = "utf-8"
+        return output.getvalue().decode(encoding)
+    finally:
+        output.close()
+    raise RuntimeError("could not write data to stream or decode bytes")

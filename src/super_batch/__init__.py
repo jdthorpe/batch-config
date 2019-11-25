@@ -1,1 +1,5 @@
-from .BatchConfig import BatchConfig 
+"""
+__init__
+"""
+from .client import client
+from .BatchConfig import BatchConfig

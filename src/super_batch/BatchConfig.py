@@ -18,6 +18,7 @@ CONFIG_SCHEMA = {
         "BATCH_ACCOUNT_URL": {"type": "string"},
         "STORAGE_ACCOUNT_NAME": {"type": "string"},
         "STORAGE_ACCOUNT_KEY": {"type": "string"},
+        "STORAGE_ACCOUNT_CONNECTION_STRING": {"type": "string"},
         "STORAGE_ACCESS_DURATION_HRS": {"type": "number", "minimum": 0, "default": 24},
         "REGISTRY_SERVER": {"type": "string"},
         "REGISTRY_USERNAME": {"type": "string"},
@@ -61,12 +62,13 @@ class _BatchConfig(NamedTuple):
     BATCH_ACCOUNT_NAME: Optional[str] = None
     BATCH_ACCOUNT_KEY: Optional[str] = None
     BATCH_ACCOUNT_URL: Optional[str] = None
-    STORAGE_ACCOUNT_NAME: Optional[str] = None
     STORAGE_ACCOUNT_KEY: Optional[str] = None
+    STORAGE_ACCOUNT_CONNECTION_STRING: Optional[str] = None
     STORAGE_ACCESS_DURATION_HRS: int = 24
     REGISTRY_SERVER: Optional[str] = None
     REGISTRY_USERNAME: Optional[str] = None
     REGISTRY_PASSWORD: Optional[str] = None
+    COMMAND_LINE: Optional[str] = None
 
 
 def BatchConfig(**kwargs):
@@ -93,8 +95,8 @@ SERVICE_KEYS = (
     "BATCH_ACCOUNT_NAME",
     "BATCH_ACCOUNT_KEY",
     "BATCH_ACCOUNT_URL",
-    "STORAGE_ACCOUNT_NAME",
     "STORAGE_ACCOUNT_KEY",
+    "STORAGE_ACCOUNT_CONNECTION_STRING",
     "REGISTRY_SERVER",
     "REGISTRY_USERNAME",
     "REGISTRY_PASSWORD",

@@ -2,20 +2,17 @@
 """
 import numpy as np
 
-
-# global parameters
+# SET GLOBAL PARAMETERS
 POWER = 3
 SIZE = (10,)
 SEEDS = (1, 12, 123, 1234)
 
-# LOCAL AGGREGATION OF INTERMEDIATE STATISTICS
 out = np.zeros((len(SEEDS),))
-
-for i, seed in enumerate(SEEDS):
+for i, seed in enumerate(SEEDS): # DEFINE LOOPING PARAMETERS
+    # DO WORK
     np.random.seed(seed)
-    out[i] = sum(np.power(np.random.uniform(size=SIZE), POWER))
+    tmp = np.random.uniform(size=SIZE)
+    out[i] = sum(np.power(tmp, POWER))
 
-parameters = joblib.load("inputs.pickle")
-parameters["seed"]
-{"seed": 123}
-joblib.load("inputs.pickle")
+# AGGREGATE INTERMEDIATE STATISTICS
+print(sum(out))

@@ -12,102 +12,172 @@ insitutes some best practices too.
 For example, this:
 
 ```python
-# create a looping condigion:
-from sklearn.model_selection import KFold
-N_SPLITS = 2
-kf = KFold(n_splits=N_SPLITS)
+import numpy as np
 
-# import some function that does work
-from some_package import do_some_work 
+# SET GLOBAL PARAMETERS
+POWER = 3
+SIZE = (10,)
+SEEDS = (1, 12, 123, 1234)
 
-# read in some object used for all the calculations
-with file("path/to/some/file",'w') as fh:
-	X = read_file(fh)
+out = np.zeros((len(SEEDS),))
+for i, seed in enumerate(SEEDS): # DEFINE LOOPING PARAMETERS
+    # DO WORK
+    np.random.seed(seed)
+    tmp = np.random.uniform(size=SIZE)
+    out[i] = sum(np.power(tmp, POWER))
 
-out = [None] * len()
-for i, (train_index, test_index) in enumerate(kf.split(X)):
-	out[i] = do_some_work(X[test_index])
+# AGGREGATE INTERMEDIATE STATISTICS
+print(sum(out))
 ```
 
-Becomes:
-
+Is split into a worker which is responsible for a single task:
 
 ```python
 # worker.py
+import numpy as np
 import joblib
-import do_some_work from some_package
-CONTAINER_OUTPUT_FILE = "output.pickle"  # Standard Output file
-CONTAINER_INPUT_FILE = "input.pickle"  # Standard Output file
+from constants import GLOBAL_CONFIG_FILE, WORKER_INPUTS_FILE, WORKER_OUTPUTS_FILE
 
-print("loading the file")
-data = joblib.load(CONTAINER_INPUT_FILE)
-print("doing work")
-output = do_some_work(data)
-print("dumping results")
-joblib.dump(output,CONTAINER_OUTPUT_FILE)
-print("DONE")
+# read the designated global config and iteration parameter files
+global_config = joblib.load(GLOBAL_CONFIG_FILE)
+parameters = joblib.load(WORKER_INPUTS_FILE)
+
+# do work
+np.random.seed(parameters["seed"])
+out = sum( np.power(np.random.uniform(size=global_config["size"]), global_config["power"]))
+
+# write the results to the designated output file
+joblib.dump(out, WORKER_OUTPUTS_FILE)
 ```
 
-with the following docker file: 
 
-```dockerfile
-# Dockerfile
-from python:3.7
-
-copy ./worker.py ./worker.py
-cmd python worker.py
-CMD ["python3","worker.py"]
-```
-
-and fin
+A controller to send tasks to azure batch:
 
 ```python
-# import the batch configuration
+# controller.py
+import os
 import datetime
-from super_batch import BatchConfig
-
-TIMESTAMP = datetime.datetime.utcnow().strftime("%H%M%S")
-NAME = "MY_SUPER_IMPORTANT_TASK"
-	
-BATCH_CONFIG = BatchConfig(
-            POOL_ID=NAME,
-            POOL_LOW_PRIORITY_NODE_COUNT=5,
-            POOL_VM_SIZE="STANDARD_A1_v2",
-            JOB_ID=NAME + TIMESTAMP,
-            CONTAINER_NAME=NAME,
-            BATCH_DIRECTORY=batchdir,
-            DOCKER_CONTAINER="jdthorpe/sparsesc:latest",
-        )
+import pathlib
+import numpy  # pylint: disable=unused-import
+import joblib
+import super_batch
+from constants import (
+    GLOBAL_CONFIG_FILE,
+    WORKER_INPUTS_FILE,
+    WORKER_OUTPUTS_FILE,
+    LOCAL_INPUTS_PATTERN,
+    LOCAL_OUTPUTS_PATTERN,
+)
 
 
+# --------------------------------------------------
+# CONSTANTS
+# --------------------------------------------------
+_TIMESTAMP: str = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
+BATCH_DIRECTORY: str = os.path.expanduser("~/temp/super-batch-test")
+NAME: str = "superbatchtest"
+pathlib.Path(BATCH_DIRECTORY).mkdir(parents=True, exist_ok=True)
 
-# create a looping condigion:
-from sklearn.model_selection import KFold
-N_SPLITS = 2
-kf = KFold(n_splits=N_SPLITS)
+batch_client = super_batch.client(
+    POOL_ID=NAME,
+    JOB_ID=NAME + _TIMESTAMP,
+    POOL_VM_SIZE="STANDARD_A1_v2",
+    POOL_NODE_COUNT=0,
+    POOL_LOW_PRIORITY_NODE_COUNT=2,
+    DELETE_POOL_WHEN_DONE=False,
+    # TODO:  rename CONTAINER_NAME to BLOB_CONTAINER_NAME
+    CONTAINER_NAME=NAME,
+    BATCH_DIRECTORY=BATCH_DIRECTORY,
+    # TODO:  rename DOCKER_CONTAINER to DOCKER_IMAGE
+    DOCKER_CONTAINER="jdthorpe/super-batch-test-sum-of-powers:v1",
+    COMMAND_LINE="python /worker.py",
+)
 
 
-# read in some object used for all the calculations
-with file("path/to/some/file",'w') as fh:
-	X = read_file(fh)
+# --------------------------------------------------
+# BUILD THE GLOBAL PARAMETER RESOURCE
+# --------------------------------------------------
+POWER = 3
+SIZE = (10,)
 
-out = [None] * len()
-for i, (train_index, test_index) in enumerate(kf.split(X)):
-	out[i] = do_some_work(X[test_index])
+
+joblib.dump(
+    {"power": POWER, "size": SIZE}, os.path.join(BATCH_DIRECTORY, GLOBAL_CONFIG_FILE)
+)
+global_parameters_resource = batch_client.build_resource_file(
+    GLOBAL_CONFIG_FILE, GLOBAL_CONFIG_FILE
+)
+
+# --------------------------------------------------
+# BUILD THE BATCH TASKS
+# --------------------------------------------------
+
+SEEDS = (1, 12, 123, 1234)
+for i, seed in enumerate(SEEDS):
+    # CREATE THE ITERATION PAREMTERS RESOURCE
+    param_file = LOCAL_INPUTS_PATTERN.format(i)
+    joblib.dump({"seed": seed}, os.path.join(BATCH_DIRECTORY, param_file))
+    input_resource = batch_client.build_resource_file(param_file, WORKER_INPUTS_FILE)
+
+    # CREATE AN OUTPUT RESOURCE
+    output_resource = batch_client.build_output_file(
+        WORKER_OUTPUTS_FILE, LOCAL_OUTPUTS_PATTERN.format(i)
+    )
+
+    # CREATE A TASK
+    batch_client.add_task(
+        [input_resource, global_parameters_resource], [output_resource]
+    )
+
+# --------------------------------------------------
+# RUN THE BATCH JOB
+# --------------------------------------------------
+batch_client.run()
+
+# --------------------------------------------------
+# AGGREGATE INTERMEDIATE STATISTICS
+# --------------------------------------------------
+out = [None] * len(SEEDS)
+for i in range(len(SEEDS)):
+    fpath = os.path.join(BATCH_DIRECTORY, LOCAL_OUTPUTS_PATTERN.format(i))
+    out[i] = joblib.load(fpath)
+
+print(sum(out))
 ```
 
+Some constants shared between the worker and the controller:
 
+```python
+# constants.py
+GLOBAL_CONFIG_FILE = "config.pickle"
+WORKER_INPUTS_FILE = "inputs.pickle"
+WORKER_OUTPUTS_FILE = "outputs.pickle"
+LOCAL_INPUTS_PATTERN = "iter_{}_inputs.pickle"
+LOCAL_OUTPUTS_PATTERN = "iter_{}_outputs.pickle"
+```
 
+with the following `Dockerfile`:
 
+```dockerfile
+# docker build -t jdthorpe/super-batch-test-sum-of-powers:v1 .
+# docker push jdthorpe/super-batch-test-sum-of-powers:v1
+FROM python:3.7
+RUN pip install --upgrade pip \
+	&& pip install numpy joblib
+COPY worker.py .
+COPY constants.py .
+```
+
+# Setup 
 
 ### Create the Required Azure resources
 
 Using Azure batch requires an azure account, and we'll demonstrate how to run
 this module using the [azure command line tool](https://docs.microsoft.com/en-us/cli/azure/).
 
-After logging into the console with `az login` (and potentially setting the default 
-subscription with `az account set -s <subscription>`),  you'll need to create an azure
-resource group into which the batch account is created.  In addition, the 
+After logging into the console with `az login` (and potentially setting the default
+subscription with `az account set -s <subscription>`), you'll need to create an azure
+resource group into which the batch account is created. In addition, the
 azure batch service requires a storage account which is used to keep track of
 details of the jobs and tasks.
 
@@ -116,6 +186,7 @@ different names, for sake of exposition, we'll give them all the same name and
 locate them in the US West 2 region, like so:
 
 ###### Powershell
+
 ```ps1
 # parameters
 $name = "sparsesctest"
@@ -127,6 +198,7 @@ az batch account create -l $location -n $name -g $name --storage-account $name
 ```
 
 ###### Bash
+
 ```bash
 # parameters
 name="sparsesctest"
@@ -138,6 +210,7 @@ az batch account create -l $location -n $name -g $name --storage-account $name
 ```
 
 ###### CMD
+
 ```bash
 REM parameters
 set name=sparsesctest
@@ -148,9 +221,9 @@ az storage account create -n %name% -g %name%
 az batch account create -l %location% -n %name% -g %name% --storage-account %name%
 ```
 
-*(Aside: since we're using the `name` for parameter for the resource group
+_(Aside: since we're using the `name` for parameter for the resource group
 storage account and batch account, it must consist of 3-24 lower case
-letters and be unique across all of azure)* 
+letters and be unique across all of azure)_
 
 ### Gather Resource Credentials
 
@@ -160,29 +233,35 @@ information that the SparseSC azure batch client will require, with the
 following:
 
 ###### Powershell
+
 ```ps1
 $BATCH_ACCOUNT_NAME = $name
 $BATCH_ACCOUNT_KEY =  az batch account keys list -n $name -g $name --query primary
 $BATCH_ACCOUNT_URL = "https://$name.$location.batch.azure.com"
-$STORAGE_ACCOUNT_NAME = $name
 $STORAGE_ACCOUNT_KEY = az storage account keys list -n $name --query [0].value
+$STORAGE_ACCOUNT_CONNECTION_STRING= az storage account show-connection-string --name $name --query connectionString
 ```
+
 ###### Bash
+
 ```bash
 export BATCH_ACCOUNT_NAME=$name
 export BATCH_ACCOUNT_KEY=$(az batch account keys list -n $name -g $name --query primary)
 export BATCH_ACCOUNT_URL="https://$name.$location.batch.azure.com"
-export STORAGE_ACCOUNT_NAME=$name
 export STORAGE_ACCOUNT_KEY=$(az storage account keys list -n $name --query [0].value)
+export STORAGE_ACCOUNT_CONNECTION_STRING=$(az storage account show-connection-string --name $name --query connectionString)
 ```
+
 ###### CMD
+
 Replace `%i` with `%%i` below if used from a bat file.
+
 ```bash
 set BATCH_ACCOUNT_NAME=%name%
-set STORAGE_ACCOUNT_NAME=%name%
 set BATCH_ACCOUNT_URL=https://%name%.%location%.batch.azure.com
 for /f %i in ('az batch account keys list -n %name% -g %name% --query primary') do @set BATCH_ACCOUNT_KEY=%i
 for /f %i in ('az storage account keys list -n %name% --query [0].value') do @set STORAGE_ACCOUNT_KEY=%i
+for /f %i in ('az storage account show-connection-string --name $name --query connectionString') do @set STORAGE_ACCOUNT_CONNECTION_STRING=%i
 ```
 
 We could of course echo these to the console and copy/paste the values into the
@@ -191,17 +270,6 @@ from within the same environment (terminal session), as these environment
 variables will be used by the `azure_batch_client` if they are not provided
 explicitly.
 
-## Prepare parameters for the Batch Job
-
-Parameters for a batch job can be created using `fit()` by providing a directory where the batch parameters should be stored:
-```python
-from SparseSC import fit
-batch_dir = "/path/to/my/batch/data/"
-
-# initialize the batch parameters in the directory `batch_dir`
-fit(x, y, ... , batchDir = batch_dir)
-```
-
 ## Executing the Batch Job
 
 In the following Python script, a Batch configuration is created and the batch
@@ -209,49 +277,13 @@ job is executed with Azure Batch. Note that the Batch Account and Storage
 Account details can be provided directly to the BatchConfig, with default
 values taken from the system environment.
 
-```python
-import os
-from datetime import datetime
-from SparseSC.utils.AzureBatch import BatchConfig, run as run_batch_job, aggregate_batch_results
-
-# Batch job names must be unique, and a timestamp is one way to keep it uniquie across runs
-timestamp = datetime.utcnow().strftime("%H%M%S")
-batchdir = "/path/to/my/batch/data/"
-
-my_config = BatchConfig(
-    # Name of the VM pool
-    POOL_ID= name,
-    # number of standard nodes
-    POOL_NODE_COUNT=5,
-    # number of low priority nodes
-    POOL_LOW_PRIORITY_NODE_COUNT=5,
-    # VM type 
-    POOL_VM_SIZE= "STANDARD_A1_v2",
-    # Job ID.  Note that this must be unique.
-    JOB_ID= name + timestamp,
-    # Name of the storage container for storing parameters and results
-    CONTAINER_NAME= name,
-    # local directory with the parameters, and where the results will go
-    BATCH_DIRECTORY= batchdir,
-    # Keep the pool around after the run, which saves time when doing
-    # multiple batch jobs, as it typically takes a few minutes to spin up a
-    # pool of VMs. (Optional. Default = False)
-    DELETE_POOL_WHEN_DONE=False,
-    # Keeping the job details can be useful for debugging:
-    # (Optional. Default = False)
-    DELETE_JOB_WHEN_DONE=False
-)
-
-# run the batch job
-run_batch_job(my_config)
-
-# aggregate the results into a fitted model instance
-fitted_model = aggregate_batch_results(batchdir)
+```sh
+python controller.py
 ```
 
-Note that the pool configuration will only be used to create a new pool if no pool 
-by the id `POOL_ID` exists.  If the pool already exists, these parameters are
-ignored and will *not* update the pool configuration.  Changing pool attrributes 
+Note that the pool configuration will only be used to create a new pool if no pool
+by the id `POOL_ID` exists. If the pool already exists, these parameters are
+ignored and will _not_ update the pool configuration. Changing pool attrributes
 such as type or quantity of nodes can be done through the [Azure Portal](https://portal.azure.com/), [Azure Batch Explorer](https://azure.github.io/BatchExplorer/) or any of the APIs.
 
 ## Cleaning Up
@@ -261,10 +293,13 @@ resources it contains, such as the storge account and batch pools, can be
 removed with the following command.
 
 ###### Powershell and Bash
+
 ```ps1
 az group delete -n $name
 ```
+
 ###### CMD
+
 ```bat
 az group delete -n %name%
 ```
