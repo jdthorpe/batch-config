@@ -1,5 +1,5 @@
 """
 __init__
 """
-from .client import client
+from .client import Client
 from .BatchConfig import BatchConfig

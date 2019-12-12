@@ -42,7 +42,7 @@ IMAGE_REF = models.ImageReference(
 )
 
 
-class client:
+class Client:
     """ convenience class
     """
 
@@ -53,6 +53,22 @@ class client:
     output_files: List[Tuple[str]]
     tasks: List[models.TaskAddParameter]
     image: models.ImageReference
+
+    @property
+    def data(self):
+        """ return data for persisting the object
+        """
+        return { 'config': self.config.clean, 'output_files':self.output_files }
+
+    @staticmethod
+    def from_data(data):
+        """ restore the object from the stored data
+        """
+        out = Client(**data['config'])
+        out.output_files = data['output_files']
+        del out.image
+        del out.tasks
+        return out
 
     def __init__(self, image=IMAGE_REF, **kwargs):
 
@@ -191,7 +207,7 @@ class client:
         :param str offer: Marketplace image offer
         :param str sku: Marketplace image sku
         """
-        if self.config.REGISTRY_USERNAME:
+        if self.config.REGISTRY_SERVER:
             registry = models.ContainerRegistry(
                 user_name=self.config.REGISTRY_USERNAME,
                 password=self.config.REGISTRY_PASSWORD,
@@ -276,7 +292,7 @@ class client:
             with open(download_file_path, "wb") as download_file:
                 download_file.write(blob_client.download_blob().readall())
 
-    def run(self, wait=True) -> None:
+    def run(self, wait=True,**kwargs) -> None:
         r"""
         :param config: A :class:`BatchConfig` instance with the Azure Batch run parameters
         :type config: :class:BatchConfig
@@ -287,6 +303,9 @@ class client:
         :raises BatchErrorException: If raised by the Azure Batch Python SDK
         """
         # replace any missing values in the configuration with environment variables
+
+        if not hasattr(self,'tasks'):
+            raise ValueError("Client restored from data cannot be used to run the job")
 
         try:
             # Create the pool that will contain the compute nodes that will execute the
@@ -312,7 +331,7 @@ class client:
             raise err
 
         if wait:
-            self.load_results()
+            self.load_results(**kwargs)
 
     def load_results(self, quiet=False) -> None:
         r"""

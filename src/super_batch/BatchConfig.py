@@ -15,7 +15,7 @@ CONFIG_SCHEMA = {
     "properties": {
         "BATCH_ACCOUNT_NAME": {"type": "string"},
         "BATCH_ACCOUNT_KEY": {"type": "string"},
-        "BATCH_ACCOUNT_URL": {"type": "string"},
+        "BATCH_ACCOUNT_ENDPOINT": {"type": "string"},
         "STORAGE_ACCOUNT_NAME": {"type": "string"},
         "STORAGE_ACCOUNT_KEY": {"type": "string"},
         "STORAGE_ACCOUNT_CONNECTION_STRING": {"type": "string"},
@@ -63,7 +63,7 @@ class _BatchConfig(NamedTuple):
     DELETE_CONTAINER_WHEN_DONE: bool = False
     BATCH_ACCOUNT_NAME: Optional[str] = None
     BATCH_ACCOUNT_KEY: Optional[str] = None
-    BATCH_ACCOUNT_URL: Optional[str] = None
+    BATCH_ACCOUNT_ENDPOINT: Optional[str] = None
     STORAGE_ACCOUNT_KEY: Optional[str] = None
     STORAGE_ACCOUNT_CONNECTION_STRING: Optional[str] = None
     STORAGE_ACCESS_DURATION_HRS: int = 24
@@ -72,6 +72,44 @@ class _BatchConfig(NamedTuple):
     REGISTRY_PASSWORD: Optional[str] = None
     COMMAND_LINE: Optional[str] = None
 
+    @property
+    def clean(self):
+        """
+        get the attributes from this object which don't contain permissions
+        """
+        out = {}
+        for k in clean_keys:
+            try:
+                v = getattr(self, k)
+            except AttributeError:
+                pass
+            else:
+                out[k] = v
+
+        return out
+    @property
+    def BATCH_ACCOUNT_URL(self):
+        return 'https://{}'.format(self.BATCH_ACCOUNT_ENDPOINT)
+
+clean_keys = (
+    'POOL_ID',
+    'JOB_ID',
+    'POOL_VM_SIZE',
+    'BLOB_CONTAINER_NAME',
+    'BATCH_DIRECTORY',
+    'DOCKER_IMAGE',
+    'POOL_NODE_COUNT',
+    'POOL_LOW_PRIORITY_NODE_COUNT',
+    'DELETE_POOL_WHEN_DONE',
+    'DELETE_JOB_WHEN_DONE',
+    'DELETE_CONTAINER_WHEN_DONE',
+    'BATCH_ACCOUNT_NAME',
+    'BATCH_ACCOUNT_ENDPOINT',
+    'STORAGE_ACCOUNT_CONNECTION_STRING',
+    'STORAGE_ACCESS_DURATION_HRS',
+    'REGISTRY_SERVER',
+    'COMMAND_LINE',
+    )
 
 def BatchConfig(**kwargs):
     """ Azure Batch Configuration
@@ -96,7 +134,7 @@ def _validate(x):
 SERVICE_KEYS = (
     "BATCH_ACCOUNT_NAME",
     "BATCH_ACCOUNT_KEY",
-    "BATCH_ACCOUNT_URL",
+    "BATCH_ACCOUNT_ENDPOINT",
     "STORAGE_ACCOUNT_KEY",
     "STORAGE_ACCOUNT_CONNECTION_STRING",
     "REGISTRY_SERVER",
