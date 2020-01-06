@@ -1,6 +1,6 @@
 # SuperBatch
 
-#### Slightly opinionated convenience wrappers and best practices for Azure Batch
+#### Opinionated convenience wrappers and best practices for Azure Batch
 
 ### TL;DR:
 
@@ -130,41 +130,36 @@ RUN pip install --upgrade pip \
 COPY worker.py .
 COPY constants.py .
 ```
-##### Build and publish the docker image
+#### Build and publish the docker image
 
-Then to create a docker image in locally, navigate to the project directory and
-call: 
+To create a docker image locally, navigate to the project directory and call: 
 ```bash
 docker build -t myusername/sum-of-powers:v1 .
 ```
-The tag name includes (`myusername/sum-of-powers:v1`) the
-username and image name as well as a version.
-
-At this point, the docker image needs to be uploaded to someplace where
-accessible to Azure Batch.  If you own that user name at hub.docker.com
-(`myusername` in this case) and are logged in, you can push your code to a
-**publicly available** image like so:
+At this point, the docker image needs to be uploaded to a registry that is 
+accessible to Azure Batch.  If you own that user name (`myusername`) at
+[hub.docker.com]() and are logged in, you can push your code to a
+**publicly available** registry like so:
 ```bash
 docker push myusername/sum-of-powers:v1
 ```
-However, if you wish to keep your code private, you'll need a private
-registry such as Azure Container Registry which can be created at the
-command line via [`az acr create`](https://docs.microsoft.com/en-us/cli/azure/acr?view=azure-cli-latest#az-acr-create) 
+However, if you wish to keep your code private, you'll need to use a
+private registry such as Azure Container Registry which can be created at
+the command line via [`az acr create`](https://docs.microsoft.com/en-us/cli/azure/acr?view=azure-cli-latest#az-acr-create)
 or via the [web portal](https://docs.microsoft.com/en-us/azure/container-registry/container-registry-get-started-portal).
 
 Once your private Azure Container Registry has been created, you can build,
 tag, and upload your image like so: 
-
 ```bash
 # build the image locally
 docker build -t sum-of-powers:v1 .
 # login to Azure and the container registry
 az login
-az acr login --name sparsescinternal
+az acr login --name myownprivateregistry
 # tag the local image
-docker tag sum-of-powers:v4 sparsescinternal.azurecr.io/sum-of-powers:v4
+docker tag sum-of-powers:v4 myownprivateregistry.azurecr.io/sum-of-powers:v4
 # push the image to the private registry
-docker push sparsescinternal.azurecr.io/sum-of-powers:v4
+docker push myownprivateregistry.azurecr.io/sum-of-powers:v4
 ```
 
 ### Step 3: Write the controller
@@ -266,6 +261,8 @@ you are done with a single command ([az rg delete](https://docs.microsoft.com/en
 unnecessary charges to your Azure subscription when you have finished with your
 batch jobs.
 
+Examples are for included for the bash, cmd, and powershell:
+
 ###### Powershell
 ```ps1
 # parameters
@@ -276,7 +273,6 @@ az group create -l $location -n $name
 az storage account create -n $name -g $name
 az batch account create -l $location -n $name -g $name --storage-account $name
 ```
-
 ###### Bash
 ```bash
 # parameters
@@ -287,7 +283,6 @@ az group create -l $location -n $name
 az storage account create -n $name -g $name
 az batch account create -l $location -n $name -g $name --storage-account $name
 ```
-
 ###### CMD
 ```bash
 REM parameters
@@ -305,13 +300,24 @@ letters and be unique across all of azure)_
 
 ### Gather Resource Credentials
 
-We'll need some information about the batch and storage accounts in order
-to create and run batch jobs. We can create bash variables that contain the
-information that the SparseSC azure batch client will require, with the
-following:
+In order to run our tasks in Azure batch, we need credentials for each of
+the azure resources (e.g. azure batch, storage, and optionally the azure
+container registry).  The strategy employed by this package is to log in to
+the Azure CLI (az login) and export the necessary credentials as local
+variables in the terminal session.
+
+After exporting these credentials, when the controller is executed in the same
+terminal session, super batch will read in credentials from local
+environment.
+
+This implements the security best practice of least privilege (as our code
+only has the permissions to run a batch job and nothing more) and
+compartmentalization as the credentials are never stored outside the
+terminal session.
+
+Again, examples are for included for the bash, cmd, and powershell:
 
 ###### Powershell
-
 ```ps1
 $BATCH_ACCOUNT_NAME = $name
 $BATCH_ACCOUNT_KEY =  az batch account keys list -n $name -g $name --query primary
@@ -319,9 +325,7 @@ $BATCH_ACCOUNT_URL = "https://$name.$location.batch.azure.com"
 $STORAGE_ACCOUNT_KEY = az storage account keys list -n $name --query [0].value
 $STORAGE_ACCOUNT_CONNECTION_STRING= az storage account show-connection-string --name $name --query connectionString
 ```
-
 ###### Bash
-
 ```bash
 export BATCH_ACCOUNT_NAME=$name
 export BATCH_ACCOUNT_KEY=$(az batch account keys list -n $name -g $name --query primary)
@@ -329,11 +333,7 @@ export BATCH_ACCOUNT_URL="https://$name.$location.batch.azure.com"
 export STORAGE_ACCOUNT_KEY=$(az storage account keys list -n $name --query [0].value)
 export STORAGE_ACCOUNT_CONNECTION_STRING=$(az storage account show-connection-string --name $name --query connectionString)
 ```
-
 ###### CMD
-
-Replace `%i` with `%%i` below if used from a bat file.
-
 ```bash
 set BATCH_ACCOUNT_NAME=%name%
 set BATCH_ACCOUNT_URL=https://%name%.%location%.batch.azure.com
@@ -341,12 +341,38 @@ for /f %i in ('az batch account keys list -n %name% -g %name% --query primary') 
 for /f %i in ('az storage account keys list -n %name% --query [0].value') do @set STORAGE_ACCOUNT_KEY=%i
 for /f %i in ('az storage account show-connection-string --name $name --query connectionString') do @set STORAGE_ACCOUNT_CONNECTION_STRING=%i
 ```
+*Note, if used within a `.bat` file, replace `%i` with `%%i` above.
 
-We could of course echo these to the console and copy/paste the values into the
-BatchConfig object below. However we don't need to do that if we run python
-from within the same environment (terminal session), as these environment
-variables will be used by the `azure_batch_client` if they are not provided
-explicitly.
+If using a private Azure Container Registry, you'll also need to export the
+following credentials: 
+
+###### Powershell
+```ps1
+$AZURE_CR_NAME = "MyOwnPrivateRegistry"
+# only required once:
+az acr update -n %AZURE_CR_NAME% --admin-enabled true
+$REGISTRY_SERVER = az acr show -n %AZURE_CR_NAME% --query loginServer
+$REGISTRY_USERNAME = az acr credential show -n %AZURE_CR_NAME% --query username
+$REGISTRY_PASSWORD = az acr credential show -n %AZURE_CR_NAME% --query passwords[0].value
+```
+###### Bash
+```bash
+export AZURE_CR_NAME="MyOwnPrivateRegistry"
+# only required once:
+az acr update -n %AZURE_CR_NAME% --admin-enabled true
+export REGISTRY_SERVER=$(az acr show -n %AZURE_CR_NAME% --query loginServer)
+export REGISTRY_USERNAME=$(az acr credential show -n %AZURE_CR_NAME% --query username)
+export REGISTRY_PASSWORD=$(az acr credential show -n %AZURE_CR_NAME% --query passwords[0].value)
+```
+###### CMD
+```bash
+set AZURE_CR_NAME=MyOwnPrivateRegistry
+REM Only required once:
+az acr update -n %AZURE_CR_NAME% --admin-enabled true
+for /f %i in ('az acr show -n %AZURE_CR_NAME% --query loginServer') do @set REGISTRY_SERVER=%i
+for /f %i in ('az acr credential show -n %AZURE_CR_NAME% --query username') do @set REGISTRY_USERNAME=%i
+for /f %i in ('az acr credential show -n %AZURE_CR_NAME% --query passwords[0].value') do @set REGISTRY_PASSWORD=%i
+```
 
 ### Step 5:  Execute the Batch Job
 
@@ -368,7 +394,7 @@ CLI](https://docs.microsoft.com/en-us/cli/azure/batch/pool?view=azure-cli-latest
 **Note that** if there is an error in your worker code, you can update your
 worker by incrementing the version portion of the tag (e.g `v1` to `v2`),
 and then rebuild, publish your docker image (Step x), and updating the
-`DOCKER_IMAGE` name in  your controller.py script.
+`DOCKER_IMAGE` name in your controller.py script.
 
 ### Step 6: Clean Up
 
@@ -377,13 +403,19 @@ resources it contains, such as the storge account and batch pools, can be
 removed with the following command:
 
 ###### Powershell and Bash
-
 ```ps1
 az group delete -n $name
 ```
-
 ###### CMD
-
 ```bat
 az group delete -n %name%
 ```
+
+# Final notes:
+
+While the SuperBatch helper scripts are written in Python, in principal,
+this package can be used to automate work which gets done in any language.
+Docker images exist for a great variety of languages, and using a worker
+from another language stack simply requires changing the files written and
+read from python `.pickle`s to something more language agnostic, such as
+csv, yaml, json, or feather (to name a few). 
