@@ -43,7 +43,7 @@ Azure Batch.  Specifically:
 * **The Azure Batch instance will be set up using the 
 	[Azure command line utility `az`](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest).**
 	This makes setting up the Azure Batch Instance fast and repeatable, and
-	allows us to authenticate without having to store credentials anywhere,
+	allows us to authenticate without having to store credentials,
 	which is a security best practice.
 * **The code to be executed by azure batch will be bundled into a docker
 	image.**  Using docker ensures that our code can be tested locally and
@@ -72,7 +72,7 @@ This module contains constants that for the contract between the controller
 which tells Azure Batch about the individual tasks that need to be
 completed, and the worker which executes an individual task.
 ```python
-# constants.py
+# ./constants.py
 GLOBAL_CONFIG_FILE = "config.pickle"
 WORKER_INPUTS_FILE = "inputs.pickle"
 WORKER_OUTPUTS_FILE = "outputs.pickle"
@@ -87,20 +87,20 @@ for running a single task.  Specifically, it reads in the global and
 iteration specific configuration, does the work, and writes the results to
 file in the local computing environment.
 ```python
-# worker.py
+# ./worker.py
 import numpy as np
 import joblib
 from constants import GLOBAL_CONFIG_FILE, WORKER_INPUTS_FILE, WORKER_OUTPUTS_FILE
 
-# read the designated global config and iteration parameter files
+# Read the designated global config and iteration parameter files
 global_config = joblib.load(GLOBAL_CONFIG_FILE)
 parameters = joblib.load(WORKER_INPUTS_FILE)
 
-# DO WORK
+# Do the actual work
 np.random.seed(parameters["seed"])
 out = sum( np.power(np.random.uniform(size=global_config["size"]), global_config["power"]))
 
-# write the results to the designated output file
+# Write the results to the designated output file
 joblib.dump(out, WORKER_OUTPUTS_FILE)
 ```
 ### Step 2: Build a docker image with your worker code
@@ -108,6 +108,7 @@ Next, we need to bundle this code so that it can be executed by Azure
 Batch.  We'll use docker to bundle the code and it's dependencies, which
 requires writing a docker file like the following:
 ```dockerfile
+# ./Dockerfile
 FROM python:3.7
 RUN pip install --upgrade pip \
 	&& pip install numpy joblib
@@ -123,6 +124,7 @@ results of that call to a file called `requirements.txt`.  Then simply copy
 the requirements file into the docker image and install the exact versions
 of your requirements into the docker image like so:
 ```dockerfile
+# ./Dockerfile
 FROM python:3.7
 COPY requirements.txt .
 RUN pip install --upgrade pip \
@@ -171,7 +173,7 @@ scripts, it's is mostly boiler plate, and you'll most likely just need to
 update it with your preferences (e.g. vm size, node counts, etc) as well as
 you docker image name and version. 
 ```python
-# controller.py
+# ./controller.py
 import os
 import datetime
 import pathlib
@@ -203,7 +205,6 @@ batch_client = super_batch.client(
     DOCKER_IMAGE="myusername/sum-of-powers:v1",
     COMMAND_LINE="python /worker.py",
 )
-
 
 # BUILD THE GLOBAL PARAMETER RESOURCE
 global_parameters = {"power": 3, "size": (10,)}
@@ -346,7 +347,7 @@ for /f %i in ('az storage account show-connection-string --name $name --query co
 If using a private Azure Container Registry, you'll also need to export the
 following credentials: 
 
-###### Powershell
+###### Powershelpar
 ```ps1
 $AZURE_CR_NAME = "MyOwnPrivateRegistry"
 # only required once:
