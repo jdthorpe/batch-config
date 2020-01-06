@@ -1,38 +1,35 @@
 # SuperBatch
 
-#### Slightly opinionated convenience wrappers and best practices for Azure
-Batch
+#### Slightly opinionated convenience wrappers and best practices for Azure Batch
 
 ### TL;DR:
 
 In principal Azure Batch can often speed up your long running for loops by
-several orders of magnitude, but rolling your code over requires a good bit
-of configuration. This package aims to simplify that process dramatically,
-and insitutes some best practices too.
+several orders of magnitude, but converting your code to run in Azure Batch
+requires a good bit of configuration and there are a great variety of ways
+to do it. This package aims to simplify that process dramatically, and
+institutes some best practices too.
 
 For example, the following code contains a nested for loop with work which
 can be spread across multiple workers and orchestrated by Azure Batch:
 ```python
 import numpy as np
 
-# SET GLOBAL PARAMETERS
 POWER = 3
 SIZE = (10,)
 SEEDS = (1, 12, 123, 1234)
 
 out = np.zeros((len(SEEDS),))
-for i, seed in enumerate(SEEDS): # DEFINE LOOPING PARAMETERS
-    # DO WORK
+for i, seed in enumerate(SEEDS): 
     np.random.seed(seed)
     tmp = np.random.uniform(size=SIZE)
     out[i] = sum(np.power(tmp, POWER))
 
-# AGGREGATE INTERMEDIATE STATISTICS
 print(sum(out))
 ```
 However, to leverage azure batch, we'll need to:
 * Set up an Azure Batch instance.
-* Bundle the code which does the actual work into it's own component.
+* Bundle the code which does the actual work into it's own script.
 * Tell Azure Batch about each of the individual bits of work that need to
 	be done (i.e. the `for i, seed in enumerate(SEEDS)` part)
 * Collect the results of each task
@@ -40,10 +37,11 @@ However, to leverage azure batch, we'll need to:
 	`sum(out)` part)
 
 This module aims to make this process as smooth as possible, and will take
-some opinions on how to do so in order to reduce the amount or research and
-code you need to write to get your job up and running with Azure Batch.  Specifically:
+some opinions on how to do so in order to reduce the amount of research you
+need to do and code you need to write to get your job up and running with
+Azure Batch.  Specifically:
 * **The Azure Batch instance will be set up using the 
-	[Azure command line tool `az`](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest).**
+	[Azure command line utility `az`](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest).**
 	This makes setting up the Azure Batch Instance fast and repeatable, and
 	allows us to authenticate without having to store credentials anywhere,
 	which is a security best practice.
@@ -58,18 +56,17 @@ code you need to write to get your job up and running with Azure Batch.  Specifi
 
 Azure batch is responsible for (1) loading our code into a computing
 environment, (2) loading the data that our code requires into the file
-system, (3) executing our code, (4) collection the data produced by our
-file. 
+system of that environment, (3) executing our code, (4) collecting the data
+produced by our code. 
 
 Therefor, we will need to
 1. Bundle our code 
-1. Specify where our code will read in required data and write the results
-   or it's work
+1. Specify where our code will read in required data and write results
 1. Run our code in Azure Batch
 1. Collect the results
-1. Shut down our Azure Batch Instance
+1. Shut down the Azure Batch instance
 
-## Step 0: specify the input and output file names
+### Step 0: specify the input and output file names
 
 This module contains constants that for the contract between the controller
 which tells Azure Batch about the individual tasks that need to be
@@ -83,7 +80,7 @@ LOCAL_INPUTS_PATTERN = "iter_{}_inputs.pickle"
 LOCAL_OUTPUTS_PATTERN = "iter_{}_outputs.pickle"
 ```
 
-## Step 1: Write the worker code
+### Step 1: Write the worker code
 
 First, we'll bundle our worker into a python script which is responsible
 for running a single task.  Specifically, it reads in the global and
@@ -106,7 +103,7 @@ out = sum( np.power(np.random.uniform(size=global_config["size"]), global_config
 # write the results to the designated output file
 joblib.dump(out, WORKER_OUTPUTS_FILE)
 ```
-##### Step 2: Build a docker image with your worker code
+### Step 2: Build a docker image with your worker code
 Next, we need to bundle this code so that it can be executed by Azure
 Batch.  We'll use docker to bundle the code and it's dependencies, which
 requires writing a docker file like the following:
@@ -170,7 +167,7 @@ docker tag sum-of-powers:v4 sparsescinternal.azurecr.io/sum-of-powers:v4
 docker push sparsescinternal.azurecr.io/sum-of-powers:v4
 ```
 
-## Step 3: Write the controller
+### Step 3: Write the controller
 
 We need to tell azure batch about our tasks, run the tasks, wait for their
 completion, download the results.  The following script leverages a helper
@@ -194,9 +191,9 @@ from constants import (
 )
 
 # CONSTANTS
-_TIMESTAMP: str = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
-BATCH_DIRECTORY: str = os.path.expanduser("~/temp/super-batch-test")
-NAME: str = "superbatchtest"
+_TIMESTAMP = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
+BATCH_DIRECTORY = os.path.expanduser("~/temp/super-batch-test")
+NAME = "superbatchtest"
 pathlib.Path(BATCH_DIRECTORY).mkdir(parents=True, exist_ok=True)
 
 batch_client = super_batch.client(
@@ -248,7 +245,7 @@ for i in range(len(SEEDS)):
     out[i] = joblib.load(fpath)
 print(sum(out))
 ```
-## Step 4: Create the Required Azure resources
+### Step 4: Create the Required Azure resources
 
 Using Azure batch requires an azure account, and we'll demonstrate how to run
 this module using the [azure command line tool](https://docs.microsoft.com/en-us/cli/azure/).
@@ -351,7 +348,7 @@ from within the same environment (terminal session), as these environment
 variables will be used by the `azure_batch_client` if they are not provided
 explicitly.
 
-# Step 5:  Executing the Batch Job
+### Step 5:  Execute the Batch Job
 
 In the following Python script, a Batch configuration is created and the batch
 job is executed with Azure Batch. Note that the Batch Account and Storage
@@ -373,7 +370,7 @@ worker by incrementing the version portion of the tag (e.g `v1` to `v2`),
 and then rebuild, publish your docker image (Step x), and updating the
 `DOCKER_IMAGE` name in  your controller.py script.
 
-## Cleaning Up
+### Step 6: Clean Up
 
 In order to prevent unexpected charges, the resource group, including all the
 resources it contains, such as the storge account and batch pools, can be
