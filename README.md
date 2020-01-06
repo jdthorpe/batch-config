@@ -168,10 +168,22 @@ docker push myownprivateregistry.azurecr.io/sum-of-powers:v4
 
 We need to tell azure batch about our tasks, run the tasks, wait for their
 completion, download the results.  The following script leverages a helper
-provided by `super_batch` to do this.  While this is one of the longer
-scripts, it's is mostly boiler plate, and you'll most likely just need to
-update it with your preferences (e.g. vm size, node counts, etc) as well as
-you docker image name and version. 
+provided by `super_batch`, which can be installed via:
+
+```bash
+pip install git+https://github.com/jdthorpe/batch-config
+```
+
+Finally, while the following is one of the longer scripts you'll need to
+write, it can be written by adding the boiler plate code to you're original
+code containing the for loop containing the tasks that are to be deligated
+to Azure Batch.
+
+You'll most likely just need to update it with your batch configuration
+preferences (e.g.  vm size, node counts, etc), the name of your docker
+image, and then replace the body of the `for` loop from your original code
+with the boiler plate code in the for loop below:
+
 ```python
 # ./controller.py
 import os
@@ -187,12 +199,17 @@ from constants import (
     LOCAL_OUTPUTS_PATTERN,
 )
 
-# CONSTANTS
+# CONSTANTS: 
+# used to generate unique task names:
 _TIMESTAMP = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
-BATCH_DIRECTORY = os.path.expanduser("~/temp/super-batch-test")
-NAME = "superbatchtest"
+# a local directory where temporary files will be stored:
+BATCH_DIRECTORY = os.path.expanduser("~/temp/super-batch-test") 
 pathlib.Path(BATCH_DIRECTORY).mkdir(parents=True, exist_ok=True)
+# The `$name` of our created resources:
+NAME = "superbatchtest"
 
+
+# instantiate the batch helper client:
 batch_client = super_batch.client(
     POOL_ID=NAME,
     JOB_ID=NAME + _TIMESTAMP,
@@ -295,8 +312,8 @@ az storage account create -n %name% -g %name%
 az batch account create -l %location% -n %name% -g %name% --storage-account %name%
 ```
 
-_(Aside: since we're using the `name` for parameter for the resource group
-storage account and batch account, it must consist of 3-24 lower case
+_(Aside: since we're using the `name` for parameter for the resource group,
+storage account and batch account, it must consist of 3-24 lower case,
 letters and be unique across all of azure)_
 
 ### Gather Resource Credentials
@@ -304,7 +321,7 @@ letters and be unique across all of azure)_
 In order to run our tasks in Azure batch, we need credentials for each of
 the azure resources (e.g. azure batch, storage, and optionally the azure
 container registry).  The strategy employed by this package is to log in to
-the Azure CLI (az login) and export the necessary credentials as local
+the Azure CLI (`az login`) and export the necessary credentials as local
 variables in the terminal session.
 
 After exporting these credentials, when the controller is executed in the same
@@ -313,8 +330,8 @@ environment.
 
 This implements the security best practice of least privilege (as our code
 only has the permissions to run a batch job and nothing more) and
-compartmentalization as the credentials are never stored outside the
-terminal session.
+compartmentalization (as the credentials only handled by `az` and are never
+stored outside the terminal session).
 
 Again, examples are for included for the bash, cmd, and powershell:
 
@@ -347,7 +364,7 @@ for /f %i in ('az storage account show-connection-string --name $name --query co
 If using a private Azure Container Registry, you'll also need to export the
 following credentials: 
 
-###### Powershelpar
+###### Powershell
 ```ps1
 $AZURE_CR_NAME = "MyOwnPrivateRegistry"
 # only required once:
