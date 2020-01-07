@@ -51,7 +51,6 @@ Azure Batch.  Specifically:
 	having to write custom scripts to configure the VMs which will run our
 	code.
 
-
 ## Overview of the solution:
 
 Azure batch is responsible for (1) loading our code into a computing
@@ -74,8 +73,8 @@ completed, and the worker which executes an individual task.
 ```python
 # ./constants.py
 GLOBAL_CONFIG_FILE = "config.pickle"
-WORKER_INPUTS_FILE = "inputs.pickle"
-WORKER_OUTPUTS_FILE = "outputs.pickle"
+TASK_INPUTS_FILE = "inputs.pickle"
+TASK_OUTPUTS_FILE = "outputs.pickle"
 LOCAL_INPUTS_PATTERN = "iter_{}_inputs.pickle"
 LOCAL_OUTPUTS_PATTERN = "iter_{}_outputs.pickle"
 ```
@@ -90,18 +89,18 @@ file in the local computing environment.
 # ./worker.py
 import numpy as np
 import joblib
-from constants import GLOBAL_CONFIG_FILE, WORKER_INPUTS_FILE, WORKER_OUTPUTS_FILE
+from constants import GLOBAL_CONFIG_FILE, TASK_INPUTS_FILE, TASK_OUTPUTS_FILE
 
 # Read the designated global config and iteration parameter files
 global_config = joblib.load(GLOBAL_CONFIG_FILE)
-parameters = joblib.load(WORKER_INPUTS_FILE)
+parameters = joblib.load(TASK_INPUTS_FILE)
 
 # Do the actual work
 np.random.seed(parameters["seed"])
 out = sum( np.power(np.random.uniform(size=global_config["size"]), global_config["power"]))
 
 # Write the results to the designated output file
-joblib.dump(out, WORKER_OUTPUTS_FILE)
+joblib.dump(out, TASK_OUTPUTS_FILE)
 ```
 ### Step 2: Build a docker image with your worker code
 Next, we need to bundle this code so that it can be executed by Azure
@@ -132,7 +131,7 @@ RUN pip install --upgrade pip \
 COPY worker.py .
 COPY constants.py .
 ```
-#### Build and publish the docker image
+### Build and publish the docker image
 
 To create a docker image locally, navigate to the project directory and call: 
 ```bash
@@ -169,11 +168,9 @@ docker push myownprivateregistry.azurecr.io/sum-of-powers:v4
 We need to tell azure batch about our tasks, run the tasks, wait for their
 completion, download the results.  The following script leverages a helper
 provided by `super_batch`, which can be installed via:
-
 ```bash
 pip install git+https://github.com/jdthorpe/batch-config
 ```
-
 Finally, while the following is one of the longer scripts you'll need to
 write, it can be written by adding the boiler plate code to you're original
 code containing the for loop containing the tasks that are to be deligated
@@ -193,8 +190,8 @@ import joblib
 import super_batch
 from constants import (
     GLOBAL_CONFIG_FILE,
-    WORKER_INPUTS_FILE,
-    WORKER_OUTPUTS_FILE,
+    TASK_INPUTS_FILE,
+    TASK_OUTPUTS_FILE,
     LOCAL_INPUTS_PATTERN,
     LOCAL_OUTPUTS_PATTERN,
 )
@@ -208,8 +205,7 @@ pathlib.Path(BATCH_DIRECTORY).mkdir(parents=True, exist_ok=True)
 # The `$name` of our created resources:
 NAME = "superbatchtest"
 
-
-# instantiate the batch helper client:
+# INSTANTIATE THE BATCH HELPER CLIENT:
 batch_client = super_batch.client(
     POOL_ID=NAME,
     JOB_ID=NAME + _TIMESTAMP,
@@ -236,11 +232,11 @@ for i, seed in enumerate(SEEDS):
     # CREATE THE ITERATION PAREMTERS RESOURCE
     param_file = LOCAL_INPUTS_PATTERN.format(i)
     joblib.dump({"seed": seed}, os.path.join(BATCH_DIRECTORY, param_file))
-    input_resource = batch_client.build_resource_file(param_file, WORKER_INPUTS_FILE)
+    input_resource = batch_client.build_resource_file(param_file, TASK_INPUTS_FILE)
 
     # CREATE AN OUTPUT RESOURCE
     output_resource = batch_client.build_output_file(
-        WORKER_OUTPUTS_FILE, LOCAL_OUTPUTS_PATTERN.format(i)
+        TASK_OUTPUTS_FILE, LOCAL_OUTPUTS_PATTERN.format(i)
     )
 
     # CREATE A TASK
