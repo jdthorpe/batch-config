@@ -78,6 +78,14 @@ TASK_OUTPUTS_FILE = "outputs.pickle"
 LOCAL_INPUTS_PATTERN = "iter_{}_inputs.pickle"
 LOCAL_OUTPUTS_PATTERN = "iter_{}_outputs.pickle"
 ```
+*Aside: In this example we'll be passing python pickle files between the
+controller and worker, because both the worker and the controller are
+written in python.  While the SuperBatch helper scripts are written in Python, 
+this package can be used to automate work which gets done in any language.
+Docker images exist for a great variety of languages, and using a worker
+from another language stack simply requires changing the files written and
+read from python `.pickle`s to something more language agnostic, such as
+csv, yaml, json, or feather (to name a few).*
 
 ### Step 1: Write the worker code
 
@@ -424,12 +432,3 @@ az group delete -n $name
 ```bat
 az group delete -n %name%
 ```
-
-# Final notes:
-
-While the SuperBatch helper scripts are written in Python, in principal,
-this package can be used to automate work which gets done in any language.
-Docker images exist for a great variety of languages, and using a worker
-from another language stack simply requires changing the files written and
-read from python `.pickle`s to something more language agnostic, such as
-csv, yaml, json, or feather (to name a few). 
