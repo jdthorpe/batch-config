@@ -75,8 +75,8 @@ completed, and the worker which executes an individual task.
 GLOBAL_CONFIG_FILE = "config.pickle"
 TASK_INPUTS_FILE = "inputs.pickle"
 TASK_OUTPUTS_FILE = "outputs.pickle"
-LOCAL_INPUTS_PATTERN = "iter_{}_inputs.pickle"
-LOCAL_OUTPUTS_PATTERN = "iter_{}_outputs.pickle"
+LOCAL_INPUTS_PATTERN = "task_{}_inputs.pickle"
+LOCAL_OUTPUTS_PATTERN = "task_{}_outputs.pickle"
 ```
 *Aside: In this example we'll be passing python pickle files between the
 controller and worker, because both the worker and the controller are
