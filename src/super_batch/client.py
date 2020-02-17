@@ -58,14 +58,14 @@ class Client:
     def data(self):
         """ return data for persisting the object
         """
-        return { 'config': self.config.clean, 'output_files':self.output_files }
+        return {"config": self.config.clean, "output_files": self.output_files}
 
     @staticmethod
     def from_data(data):
         """ restore the object from the stored data
         """
-        out = Client(**data['config'])
-        out.output_files = data['output_files']
+        out = Client(**data["config"])
+        out.output_files = data["output_files"]
         del out.image
         del out.tasks
         return out
@@ -111,7 +111,9 @@ class Client:
             batch_url=self.config.BATCH_ACCOUNT_URL,
         )
 
-    def build_resource_file(self, file_path, container_path: str, duration_hours=24):
+    def build_resource_file(
+        self, file_path, container_path: str, duration_hours=24
+    ):
         """
         Uploads a local file to an Azure Blob storage container.
 
@@ -130,7 +132,9 @@ class Client:
         except ResourceNotFoundError:
             pass
 
-        with open(os.path.join(self.config.BATCH_DIRECTORY, file_path), "rb") as data:
+        with open(
+            os.path.join(self.config.BATCH_DIRECTORY, file_path), "rb"
+        ) as data:
             blob_client.upload_blob(data, blob_type="BlockBlob")
 
         sas_token = generate_blob_sas(
@@ -170,7 +174,9 @@ class Client:
                     read=True, write=True, delete=True, list=True
                 ),
                 expiry=datetime.datetime.utcnow()
-                + datetime.timedelta(hours=self.config.STORAGE_ACCESS_DURATION_HRS),
+                + datetime.timedelta(
+                    hours=self.config.STORAGE_ACCESS_DURATION_HRS
+                ),
                 account_key=self.config.STORAGE_ACCOUNT_KEY,
             )
         )
@@ -277,7 +283,9 @@ class Client:
             def _download_files(config, blob_client, out_path, count):
         """
 
-        pathlib.Path(self.config.BATCH_DIRECTORY).mkdir(parents=True, exist_ok=True)
+        pathlib.Path(self.config.BATCH_DIRECTORY).mkdir(
+            parents=True, exist_ok=True
+        )
         blob_names = [b.name for b in self.container_client.list_blobs()]
 
         for blob_name in self.output_files:
@@ -288,11 +296,13 @@ class Client:
 
             blob_client = self.container_client.get_blob_client(blob_name)
 
-            download_file_path = os.path.join(self.config.BATCH_DIRECTORY, blob_name)
+            download_file_path = os.path.join(
+                self.config.BATCH_DIRECTORY, blob_name
+            )
             with open(download_file_path, "wb") as download_file:
                 download_file.write(blob_client.download_blob().readall())
 
-    def run(self, wait=True,**kwargs) -> None:
+    def run(self, wait=True, **kwargs) -> None:
         r"""
         :param config: A :class:`BatchConfig` instance with the Azure Batch run parameters
         :type config: :class:BatchConfig
@@ -304,17 +314,29 @@ class Client:
         """
         # replace any missing values in the configuration with environment variables
 
-        if not hasattr(self,'tasks'):
-            raise ValueError("Client restored from data cannot be used to run the job")
+        if not hasattr(self, "tasks"):
+            raise ValueError(
+                "Client restored from data cannot be used to run the job"
+            )
 
         try:
             # Create the pool that will contain the compute nodes that will execute the
             # tasks.
-            try:
-                self._create_pool()
-                print("Created pool: ", self.config.POOL_ID)
-            except models.BatchErrorException:
-                print("Using pool: ", self.config.POOL_ID)
+            if not (
+                self.config.POOL_VM_SIZE
+                and (
+                    self.config.POOL_NODE_COUNT
+                    or self.config.POOL_LOW_PRIORITY_NODE_COUNT
+                )
+            ):
+                print("Using existing pool: ", self.config.POOL_ID)
+
+            else:
+                try:
+                    self._create_pool()
+                    print("Created pool: ", self.config.POOL_ID)
+                except models.BatchErrorException:
+                    print("Using pool: ", self.config.POOL_ID)
 
             # Create the job that will run the tasks.
             job_description = models.JobAddParameter(
@@ -324,7 +346,9 @@ class Client:
             self.batch_client.job.add(job_description)
 
             # Add the tasks to the job.
-            self.batch_client.task.add_collection(self.config.JOB_ID, self.tasks)
+            self.batch_client.task.add_collection(
+                self.config.JOB_ID, self.tasks
+            )
 
         except models.BatchErrorException as err:
             print_batch_exception(err)
@@ -345,14 +369,18 @@ class Client:
         # replace any missing values in the configuration with environment variables
         start_time = datetime.datetime.now().replace(microsecond=0)
         if not quiet:
-            print("Job: {}\nStart time: {}".format(self.config.JOB_ID, start_time))
+            print(
+                "Job: {}\nStart time: {}".format(self.config.JOB_ID, start_time)
+            )
 
         try:
             # Pause execution until tasks reach Completed state.
             wait_for_tasks_to_complete(
                 self.batch_client,
                 self.config.JOB_ID,
-                datetime.timedelta(hours=self.config.STORAGE_ACCESS_DURATION_HRS),
+                datetime.timedelta(
+                    hours=self.config.STORAGE_ACCESS_DURATION_HRS
+                ),
             )
             self._download_files()
         except models.BatchErrorException as err:

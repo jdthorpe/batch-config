@@ -1,8 +1,10 @@
+---
+---
 # SuperBatch
 
-#### Opinionated convenience wrappers and best practices for Azure Batch
+## Opinionated convenience wrappers and best practices for Azure Batch
 
-### TL;DR:
+### TL;DR
 
 In principal Azure Batch can often speed up your long running for loops by
 several orders of magnitude, but converting your code to run in Azure Batch
@@ -12,6 +14,7 @@ institutes some best practices too.
 
 For example, the following code contains a nested for loop with work which
 can be spread across multiple workers and orchestrated by Azure Batch:
+
 ```python
 import numpy as np
 
@@ -20,46 +23,50 @@ SIZE = (10,)
 SEEDS = (1, 12, 123, 1234)
 
 out = np.zeros((len(SEEDS),))
-for i, seed in enumerate(SEEDS): 
+for i, seed in enumerate(SEEDS):
     np.random.seed(seed)
     tmp = np.random.uniform(size=SIZE)
     out[i] = sum(np.power(tmp, POWER))
 
 print(sum(out))
 ```
+
 However, to leverage azure batch, we'll need to:
+
 * Set up an Azure Batch instance.
 * Bundle the code which does the actual work into it's own script.
 * Tell Azure Batch about each of the individual bits of work that need to
-	be done (i.e. the `for i, seed in enumerate(SEEDS)` part)
+    be done (i.e. the `for i, seed in enumerate(SEEDS)` part)
 * Collect the results of each task
 * Aggregate the intermediate results to produce our final result (i.e the
-	`sum(out)` part)
+    `sum(out)` part)
 
 This module aims to make this process as smooth as possible, and will take
 some opinions on how to do so in order to reduce the amount of research you
 need to do and code you need to write to get your job up and running with
 Azure Batch.  Specifically:
-* **The Azure Batch instance will be set up using the 
-	[Azure command line utility `az`](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest).**
-	This makes setting up the Azure Batch Instance fast and repeatable, and
-	allows us to authenticate without having to store credentials,
-	which is a security best practice.
+
+* **The Azure Batch instance will be set up using the
+    [Azure command line utility `az`](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli?view=azure-cli-latest).**
+    This makes setting up the Azure Batch Instance fast and repeatable, and
+    allows us to authenticate without having to store credentials,
+    which is a security best practice.
 * **The code to be executed by azure batch will be bundled into a docker
-	image.**  Using docker ensures that our code can be tested locally and
-	then run in Azure Batch in the exact same computing environment without
-	having to write custom scripts to configure the VMs which will run our
-	code.
+    image.**  Using docker ensures that our code can be tested locally and
+    then run in Azure Batch in the exact same computing environment without
+    having to write custom scripts to configure the VMs which will run our
+    code.
 
 ## Overview of the solution:
 
 Azure batch is responsible for (1) loading our code into a computing
 environment, (2) loading the data that our code requires into the file
 system of that environment, (3) executing our code, (4) collecting the data
-produced by our code. 
+produced by our code.
 
-Therefor, we will need to
-1. Bundle our code 
+Therefor, we will need to:
+
+1. Bundle our code
 1. Specify where our code will read in required data and write results
 1. Run our code in Azure Batch
 1. Collect the results
@@ -70,6 +77,7 @@ Therefor, we will need to
 This module contains constants that for the contract between the controller
 which tells Azure Batch about the individual tasks that need to be
 completed, and the worker which executes an individual task.
+
 ```python
 # ./constants.py
 GLOBAL_CONFIG_FILE = "config.pickle"
@@ -78,9 +86,10 @@ TASK_OUTPUTS_FILE = "outputs.pickle"
 LOCAL_INPUTS_PATTERN = "task_{}_inputs.pickle"
 LOCAL_OUTPUTS_PATTERN = "task_{}_outputs.pickle"
 ```
+
 *Aside: In this example we'll be passing python pickle files between the
 controller and worker, because both the worker and the controller are
-written in python.  While the SuperBatch helper scripts are written in Python, 
+written in python.  While the SuperBatch helper scripts are written in Python,
 this package can be used to automate work which gets done in any language.
 Docker images exist for a great variety of languages, and using a worker
 from another language stack simply requires changing the files written and
@@ -93,6 +102,7 @@ First, we'll bundle our worker into a python script which is responsible
 for running a single task.  Specifically, it reads in the global and
 iteration specific configuration, does the work, and writes the results to
 file in the local computing environment.
+
 ```python
 # ./worker.py
 import numpy as np
@@ -110,19 +120,23 @@ out = sum( np.power(np.random.uniform(size=global_config["size"]), global_config
 # Write the results to the designated output file
 joblib.dump(out, TASK_OUTPUTS_FILE)
 ```
+
 ### Step 2: Build a docker image with your worker code
+
 Next, we need to bundle this code so that it can be executed by Azure
 Batch.  We'll use docker to bundle the code and it's dependencies, which
 requires writing a docker file like the following:
+
 ```dockerfile
 # ./Dockerfile
 FROM python:3.7
 RUN pip install --upgrade pip \
-	&& pip install numpy joblib
+    && pip install numpy joblib
 COPY worker.py .
 COPY constants.py .
 ```
-##### Best practice tip:
+
+#### Best practice tip
 
 In the above docker file, we explicitly installed two packages (numpy and
 joblib), but if your code requires more packages and you know your code
@@ -130,35 +144,42 @@ runs locally, you can call `pip freeze` from the command line and copy the
 results of that call to a file called `requirements.txt`.  Then simply copy
 the requirements file into the docker image and install the exact versions
 of your requirements into the docker image like so:
+
 ```dockerfile
 # ./Dockerfile
 FROM python:3.7
 COPY requirements.txt .
 RUN pip install --upgrade pip \
-	&& pip install -r requirements.txt
+    && pip install -r requirements.txt
 COPY worker.py .
 COPY constants.py .
 ```
+
 ### Build and publish the docker image
 
-To create a docker image locally, navigate to the project directory and call: 
+To create a docker image locally, navigate to the project directory and call:
+
 ```bash
 docker build -t myusername/sum-of-powers:v1 .
 ```
-At this point, the docker image needs to be uploaded to a registry that is 
+
+At this point, the docker image needs to be uploaded to a registry that is
 accessible to Azure Batch.  If you own that user name (`myusername`) at
-[hub.docker.com]() and are logged in, you can push your code to a
+[Docker Hub](https://hub.docker.com) and are logged in, you can push your code to a
 **publicly available** registry like so:
+
 ```bash
 docker push myusername/sum-of-powers:v1
 ```
+
 However, if you wish to keep your code private, you'll need to use a
 private registry such as Azure Container Registry which can be created at
 the command line via [`az acr create`](https://docs.microsoft.com/en-us/cli/azure/acr?view=azure-cli-latest#az-acr-create)
 or via the [web portal](https://docs.microsoft.com/en-us/azure/container-registry/container-registry-get-started-portal).
 
 Once your private Azure Container Registry has been created, you can build,
-tag, and upload your image like so: 
+tag, and upload your image like so:
+
 ```bash
 # build the image locally
 docker build -t sum-of-powers:v1 .
@@ -176,9 +197,11 @@ docker push myownprivateregistry.azurecr.io/sum-of-powers:v4
 We need to tell azure batch about our tasks, run the tasks, wait for their
 completion, download the results.  The following script leverages a helper
 provided by `super_batch`, which can be installed via:
+
 ```bash
 pip install git+https://github.com/jdthorpe/batch-config
 ```
+
 Finally, while the following is one of the longer scripts you'll need to
 write, it can be written by adding the boiler plate code to you're original
 code containing the for loop containing the tasks that are to be deligated
@@ -204,11 +227,11 @@ from constants import (
     LOCAL_OUTPUTS_PATTERN,
 )
 
-# CONSTANTS: 
+# CONSTANTS:
 # used to generate unique task names:
 _TIMESTAMP = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
 # a local directory where temporary files will be stored:
-BATCH_DIRECTORY = os.path.expanduser("~/temp/super-batch-test") 
+BATCH_DIRECTORY = os.path.expanduser("~/temp/super-batch-test")
 pathlib.Path(BATCH_DIRECTORY).mkdir(parents=True, exist_ok=True)
 # The `$name` of our created resources:
 NAME = "superbatchtest"
@@ -262,6 +285,7 @@ for i in range(len(SEEDS)):
     out[i] = joblib.load(fpath)
 print(sum(out))
 ```
+
 ### Step 4: Create the Required Azure resources
 
 Using Azure batch requires an azure account, and we'll demonstrate how to run
@@ -285,7 +309,8 @@ batch jobs.
 
 Examples are for included for the bash, cmd, and powershell:
 
-###### Powershell
+#### Powershell
+
 ```ps1
 # parameters
 $name = "azurebatchtest"
@@ -295,7 +320,9 @@ az group create -l $location -n $name
 az storage account create -n $name -g $name
 az batch account create -l $location -n $name -g $name --storage-account $name
 ```
-###### Bash
+
+#### Bash
+
 ```bash
 # parameters
 name="azurebatchtest"
@@ -305,7 +332,9 @@ az group create -l $location -n $name
 az storage account create -n $name -g $name
 az batch account create -l $location -n $name -g $name --storage-account $name
 ```
-###### CMD
+
+#### CMD
+
 ```bash
 REM parameters
 set name=azurebatchtest
@@ -339,7 +368,8 @@ stored outside the terminal session).
 
 Again, examples are for included for the bash, cmd, and powershell:
 
-###### Powershell
+#### Powershell
+
 ```ps1
 $BATCH_ACCOUNT_NAME = $name
 $BATCH_ACCOUNT_KEY =  az batch account keys list -n $name -g $name --query primary
@@ -347,7 +377,9 @@ $BATCH_ACCOUNT_URL = "https://$name.$location.batch.azure.com"
 $STORAGE_ACCOUNT_KEY = az storage account keys list -n $name --query [0].value
 $STORAGE_ACCOUNT_CONNECTION_STRING= az storage account show-connection-string --name $name --query connectionString
 ```
-###### Bash
+
+#### Bash
+
 ```bash
 export BATCH_ACCOUNT_NAME=$name
 export BATCH_ACCOUNT_KEY=$(az batch account keys list -n $name -g $name --query primary)
@@ -355,7 +387,9 @@ export BATCH_ACCOUNT_URL="https://$name.$location.batch.azure.com"
 export STORAGE_ACCOUNT_KEY=$(az storage account keys list -n $name --query [0].value)
 export STORAGE_ACCOUNT_CONNECTION_STRING=$(az storage account show-connection-string --name $name --query connectionString)
 ```
-###### CMD
+
+#### CMD
+
 ```bash
 set BATCH_ACCOUNT_NAME=%name%
 set BATCH_ACCOUNT_URL=https://%name%.%location%.batch.azure.com
@@ -363,12 +397,14 @@ for /f %i in ('az batch account keys list -n %name% -g %name% --query primary') 
 for /f %i in ('az storage account keys list -n %name% --query [0].value') do @set STORAGE_ACCOUNT_KEY=%i
 for /f %i in ('az storage account show-connection-string --name $name --query connectionString') do @set STORAGE_ACCOUNT_CONNECTION_STRING=%i
 ```
+
 *Note, if used within a `.bat` file, replace `%i` with `%%i` above.
 
 If using a private Azure Container Registry, you'll also need to export the
-following credentials: 
+following credentials:
 
-###### Powershell
+#### Powershell
+
 ```ps1
 $AZURE_CR_NAME = "MyOwnPrivateRegistry"
 # only required once:
@@ -377,7 +413,9 @@ $REGISTRY_SERVER = az acr show -n %AZURE_CR_NAME% --query loginServer
 $REGISTRY_USERNAME = az acr credential show -n %AZURE_CR_NAME% --query username
 $REGISTRY_PASSWORD = az acr credential show -n %AZURE_CR_NAME% --query passwords[0].value
 ```
-###### Bash
+
+#### Bash
+
 ```bash
 export AZURE_CR_NAME="MyOwnPrivateRegistry"
 # only required once:
@@ -386,7 +424,9 @@ export REGISTRY_SERVER=$(az acr show -n %AZURE_CR_NAME% --query loginServer)
 export REGISTRY_USERNAME=$(az acr credential show -n %AZURE_CR_NAME% --query username)
 export REGISTRY_PASSWORD=$(az acr credential show -n %AZURE_CR_NAME% --query passwords[0].value)
 ```
-###### CMD
+
+#### CMD
+
 ```bash
 set AZURE_CR_NAME=MyOwnPrivateRegistry
 REM Only required once:
@@ -402,9 +442,11 @@ In the following Python script, a Batch configuration is created and the batch
 job is executed with Azure Batch. Note that the Batch Account and Storage
 Account details can be provided directly to the BatchConfig, with default
 values taken from the system environment.
+
 ```sh
 python controller.py
 ```
+
 **Note that** the pool configuration will only be used to create a new pool if
 no pool with the id specified by the `POOL_ID` exists. If a pool with that id already
 exists, these parameters are ignored and will **not** update the pool
@@ -424,11 +466,14 @@ In order to prevent unexpected charges, the resource group, including all the
 resources it contains, such as the storge account and batch pools, can be
 removed with the following command:
 
-###### Powershell and Bash
+#### Powershell and Bash
+
 ```ps1
 az group delete -n $name
 ```
-###### CMD
+
+#### CMD
+
 ```bat
 az group delete -n %name%
 ```

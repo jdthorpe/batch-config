@@ -19,7 +19,11 @@ CONFIG_SCHEMA = {
         "STORAGE_ACCOUNT_NAME": {"type": "string"},
         "STORAGE_ACCOUNT_KEY": {"type": "string"},
         "STORAGE_ACCOUNT_CONNECTION_STRING": {"type": "string"},
-        "STORAGE_ACCESS_DURATION_HRS": {"type": "number", "minimum": 0, "default": 24},
+        "STORAGE_ACCESS_DURATION_HRS": {
+            "type": "number",
+            "minimum": 0,
+            "default": 24,
+        },
         "REGISTRY_SERVER": {"type": "string"},
         "REGISTRY_USERNAME": {"type": "string"},
         "REGISTRY_PASSWORD": {"type": "string"},
@@ -52,12 +56,12 @@ class _BatchConfig(NamedTuple):
     # pylint: disable=too-few-public-methods
     POOL_ID: str
     JOB_ID: str
-    POOL_VM_SIZE: str
     BLOB_CONTAINER_NAME: str
     BATCH_DIRECTORY: str
     DOCKER_IMAGE: str
-    POOL_NODE_COUNT: int = 0
-    POOL_LOW_PRIORITY_NODE_COUNT: int = 0
+    POOL_VM_SIZE: Optional[str]
+    POOL_NODE_COUNT: Optional[int] = 0
+    POOL_LOW_PRIORITY_NODE_COUNT: Optional[int] = 0
     DELETE_POOL_WHEN_DONE: bool = False
     DELETE_JOB_WHEN_DONE: bool = False
     DELETE_CONTAINER_WHEN_DONE: bool = False
@@ -87,29 +91,32 @@ class _BatchConfig(NamedTuple):
                 out[k] = v
 
         return out
+
     @property
     def BATCH_ACCOUNT_URL(self):
-        return 'https://{}'.format(self.BATCH_ACCOUNT_ENDPOINT)
+        return "https://{}".format(self.BATCH_ACCOUNT_ENDPOINT)
+
 
 clean_keys = (
-    'POOL_ID',
-    'JOB_ID',
-    'POOL_VM_SIZE',
-    'BLOB_CONTAINER_NAME',
-    'BATCH_DIRECTORY',
-    'DOCKER_IMAGE',
-    'POOL_NODE_COUNT',
-    'POOL_LOW_PRIORITY_NODE_COUNT',
-    'DELETE_POOL_WHEN_DONE',
-    'DELETE_JOB_WHEN_DONE',
-    'DELETE_CONTAINER_WHEN_DONE',
-    'BATCH_ACCOUNT_NAME',
-    'BATCH_ACCOUNT_ENDPOINT',
-    'STORAGE_ACCOUNT_CONNECTION_STRING',
-    'STORAGE_ACCESS_DURATION_HRS',
-    'REGISTRY_SERVER',
-    'COMMAND_LINE',
-    )
+    "POOL_ID",
+    "JOB_ID",
+    "POOL_VM_SIZE",
+    "BLOB_CONTAINER_NAME",
+    "BATCH_DIRECTORY",
+    "DOCKER_IMAGE",
+    "POOL_NODE_COUNT",
+    "POOL_LOW_PRIORITY_NODE_COUNT",
+    "DELETE_POOL_WHEN_DONE",
+    "DELETE_JOB_WHEN_DONE",
+    "DELETE_CONTAINER_WHEN_DONE",
+    "BATCH_ACCOUNT_NAME",
+    "BATCH_ACCOUNT_ENDPOINT",
+    "STORAGE_ACCOUNT_CONNECTION_STRING",
+    "STORAGE_ACCESS_DURATION_HRS",
+    "REGISTRY_SERVER",
+    "COMMAND_LINE",
+)
+
 
 def BatchConfig(**kwargs):
     """ Azure Batch Configuration
