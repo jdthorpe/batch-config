@@ -19,11 +19,7 @@ CONFIG_SCHEMA = {
         "STORAGE_ACCOUNT_NAME": {"type": "string"},
         "STORAGE_ACCOUNT_KEY": {"type": "string"},
         "STORAGE_ACCOUNT_CONNECTION_STRING": {"type": "string"},
-        "STORAGE_ACCESS_DURATION_HRS": {
-            "type": "number",
-            "minimum": 0,
-            "default": 24,
-        },
+        "STORAGE_ACCESS_DURATION_HRS": {"type": "number", "minimum": 0, "default": 24,},
         "REGISTRY_SERVER": {"type": "string"},
         "REGISTRY_USERNAME": {"type": "string"},
         "REGISTRY_PASSWORD": {"type": "string"},
@@ -44,6 +40,24 @@ CONFIG_SCHEMA = {
         "BATCH_DIRECTORY": {"type": "string"},
         "DOCKER_IMAGE": {"type": "string"},
     },
+    "required": [
+        "POOL_ID",
+        "JOB_ID",
+        "BLOB_CONTAINER_NAME",
+        "BATCH_DIRECTORY",
+        "DOCKER_IMAGE",
+        "BATCH_ACCOUNT_NAME",
+        "BATCH_ACCOUNT_KEY",
+        "BATCH_ACCOUNT_ENDPOINT",
+        "STORAGE_ACCOUNT_KEY",
+        "STORAGE_ACCOUNT_CONNECTION_STRING",
+        "STORAGE_ACCESS_DURATION_HRS",
+    ],
+    "dependencies": {
+        "REGISTRY_USERNAME": ["REGISTRY_SERVER", "REGISTRY_PASSWORD"],
+        "REGISTRY_PASSWORD": ["REGISTRY_SERVER", "REGISTRY_USERNAME"],
+        "REGISTRY_SERVER": ["REGISTRY_USERNAME", "REGISTRY_PASSWORD"],
+    }
     # to do: missing required properties
 }
 
