@@ -4,7 +4,7 @@
 ```ps1
 
 # BATCH + STORAGE CREDENTIALS
-$name = "avikbatchtest"
+$name = "batchtest"
 $location = "westus2"
 
 $env:BATCH_ACCOUNT_NAME = $name
@@ -14,7 +14,7 @@ $env:STORAGE_ACCOUNT_KEY = (az storage account keys list -n $name --query [0].va
 $env:STORAGE_ACCOUNT_CONNECTION_STRING= (az storage account show-connection-string --name $name --query connectionString) -replace '"',''
 
 # ACR CREDNETIALS
-$AZURE_CR_NAME = "avikACR"
+$AZURE_CR_NAME = "my_ACR"
 $env:REGISTRY_SERVER = (az acr show -n $AZURE_CR_NAME --query loginServer) -replace '"',""
 $env:REGISTRY_USERNAME = (az acr credential show -n $AZURE_CR_NAME --query username) -replace '"',""
 $env:REGISTRY_PASSWORD = (az acr credential show -n $AZURE_CR_NAME --query passwords[0].value) -replace '"',""
@@ -30,6 +30,9 @@ docker build . -t $env:image_name
 
 # push to our worker image to the registry
 docker push $env:image_name
+
+python controller.py
+
 
 $env:BATCH_ACCOUNT_NAME
 $env:BATCH_ACCOUNT_KEY
