@@ -335,7 +335,7 @@ az batch account create -l $location -n $name -g $name --storage-account $name
 
 #### CMD
 
-```bash
+```bat
 REM parameters
 set name=azurebatchtest
 set location=westus2
@@ -372,30 +372,42 @@ Again, examples are for included for the bash, cmd, and powershell:
 
 ```ps1
 $env:BATCH_ACCOUNT_NAME = $name
-$env:BATCH_ACCOUNT_KEY =  az batch account keys list -n $name -g $name --query primary
-$env:BATCH_ACCOUNT_URL = "https://$name.$location.batch.azure.com"
-$env:STORAGE_ACCOUNT_KEY = az storage account keys list -n $name --query [0].value
-$env:STORAGE_ACCOUNT_CONNECTION_STRING= (az storage account show-connection-string --name $name --query connectionString)-replace '"',''
+$env:BATCH_ACCOUNT_KEY =  (az batch account keys list -n $name -g $name --query primary) -replace '"',''
+$env:BATCH_ACCOUNT_ENDPOINT =  (az batch account show -n $name -g $name --query accountEndpoint) -replace '"',''
+$env:STORAGE_ACCOUNT_KEY = (az storage account keys list -n $name --query [0].value) -replace '"',''
+$env:STORAGE_ACCOUNT_CONNECTION_STRING= (az storage account show-connection-string --name $name --query connectionString) -replace '"',''
 ```
 
 #### Bash
 
 ```bash
+# Query the required parameters
 export BATCH_ACCOUNT_NAME=$name
 export BATCH_ACCOUNT_KEY=$(az batch account keys list -n $name -g $name --query primary)
-export BATCH_ACCOUNT_URL="https://$name.$location.batch.azure.com"
+export BATCH_ACCOUNT_ENDPOINT=$(az batch account show -n $name -g $name --query accountEndpoint)
 export STORAGE_ACCOUNT_KEY=$(az storage account keys list -n $name --query [0].value)
 export STORAGE_ACCOUNT_CONNECTION_STRING=$(az storage account show-connection-string --name $name --query connectionString)
+# clean up the quotes
+BATCH_ACCOUNT_KEY=$(sed -e 's/^"//' -e 's/"$//' <<<"$BATCH_ACCOUNT_KEY")
+BATCH_ACCOUNT_ENDPOINT=$(sed -e 's/^"//' -e 's/"$//' <<<"$BATCH_ACCOUNT_ENDPOINT")
+STORAGE_ACCOUNT_KEY=$(sed -e 's/^"//' -e 's/"$//' <<<"$STORAGE_ACCOUNT_KEY")
+STORAGE_ACCOUNT_CONNECTION_STRING=$(sed -e 's/^"//' -e 's/"$//' <<<"$STORAGE_ACCOUNT_CONNECTION_STRING")
 ```
 
 #### CMD
 
-```bash
+```bat
+REM Query the required parameters
 set BATCH_ACCOUNT_NAME=%name%
-set BATCH_ACCOUNT_URL=https://%name%.%location%.batch.azure.com
 for /f %i in ('az batch account keys list -n %name% -g %name% --query primary') do @set BATCH_ACCOUNT_KEY=%i
 for /f %i in ('az storage account keys list -n %name% --query [0].value') do @set STORAGE_ACCOUNT_KEY=%i
+for /f %i in ('az batch account show -n %name% -g %rgname% --query accountEndpoint') do @set BATCH_ACCOUNT_ENDPOINT=%i
 for /f %i in ('az storage account show-connection-string --name $name --query connectionString') do @set STORAGE_ACCOUNT_CONNECTION_STRING=%i
+REM clean up the quotes
+set BATCH_ACCOUNT_KEY=%BATCH_ACCOUNT_KEY:"=%
+set BATCH_ACCOUNT_ENDPOINT=%BATCH_ACCOUNT_ENDPOINT:"=%
+set STORAGE_ACCOUNT_KEY=%STORAGE_ACCOUNT_KEY:"=%
+set STORAGE_ACCOUNT_CONNECTION_STRING=%STORAGE_ACCOUNT_CONNECTION_STRING:"=%
 ```
 
 *Note, if used within a `.bat` file, replace `%i` with `%%i` above.
@@ -409,9 +421,9 @@ following credentials:
 $AZURE_CR_NAME = "MyOwnPrivateRegistry"
 # only required once:
 az acr update -n $AZURE_CR_NAME --admin-enabled true
-$REGISTRY_SERVER = az acr show -n $AZURE_CR_NAME --query loginServer
-$REGISTRY_USERNAME = az acr credential show -n $AZURE_CR_NAME --query username
-$REGISTRY_PASSWORD = az acr credential show -n $AZURE_CR_NAME --query passwords[0].value
+$REGISTRY_SERVER = (az acr show -n $AZURE_CR_NAME --query loginServer) -replace '"',''
+$REGISTRY_USERNAME = (az acr credential show -n $AZURE_CR_NAME --query username) -replace '"',''
+$REGISTRY_PASSWORD = (az acr credential show -n $AZURE_CR_NAME --query passwords[0].value) -replace '"',''
 ```
 
 #### Bash
@@ -427,13 +439,16 @@ export REGISTRY_PASSWORD=$(az acr credential show -n %AZURE_CR_NAME% --query pas
 
 #### CMD
 
-```bash
+```bat
 set AZURE_CR_NAME=MyOwnPrivateRegistry
 REM Only required once:
 az acr update -n %AZURE_CR_NAME% --admin-enabled true
 for /f %i in ('az acr show -n %AZURE_CR_NAME% --query loginServer') do @set REGISTRY_SERVER=%i
 for /f %i in ('az acr credential show -n %AZURE_CR_NAME% --query username') do @set REGISTRY_USERNAME=%i
 for /f %i in ('az acr credential show -n %AZURE_CR_NAME% --query passwords[0].value') do @set REGISTRY_PASSWORD=%i
+REGISTRY_SERVER=$(sed -e 's/^"//' -e 's/"$//' <<<"$REGISTRY_SERVER")
+REGISTRY_USERNAME=$(sed -e 's/^"//' -e 's/"$//' <<<"$REGISTRY_USERNAME")
+REGISTRY_PASSWORD=$(sed -e 's/^"//' -e 's/"$//' <<<"$REGISTRY_PASSWORD")
 ```
 
 ### Step 5:  Execute the Batch Job
@@ -477,3 +492,4 @@ az group delete -n $name
 ```bat
 az group delete -n %name%
 ```
+
