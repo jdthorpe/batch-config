@@ -20,11 +20,11 @@ from constants import (
 # CONSTANTS
 # --------------------------------------------------
 _TIMESTAMP: str = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
-BATCH_DIRECTORY: str = os.path.expanduser("~/temp/super-batch-test")
+BATCH_DIRECTORY: str = os.path.expanduser("~/temp/super-batch-test-again")
 NAME: str = "superbatchtest"
 pathlib.Path(BATCH_DIRECTORY).mkdir(parents=True, exist_ok=True)
 
-batch_client = super_batch.client(
+batch_client = super_batch.Client(
     POOL_ID=NAME,
     JOB_ID=NAME + _TIMESTAMP,
     POOL_VM_SIZE="STANDARD_A1_v2",
@@ -33,7 +33,7 @@ batch_client = super_batch.client(
     DELETE_POOL_WHEN_DONE=False,
     BLOB_CONTAINER_NAME=NAME,
     BATCH_DIRECTORY=BATCH_DIRECTORY,
-    DOCKER_IMAGE="jdthorpe/super-batch-test-sum-of-powers:v1",
+    DOCKER_IMAGE=os.environ.get("image_name"),
     COMMAND_LINE="python /worker.py",
 )
 

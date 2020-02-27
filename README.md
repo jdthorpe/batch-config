@@ -371,11 +371,11 @@ Again, examples are for included for the bash, cmd, and powershell:
 #### Powershell
 
 ```ps1
-$BATCH_ACCOUNT_NAME = $name
-$BATCH_ACCOUNT_KEY =  az batch account keys list -n $name -g $name --query primary
-$BATCH_ACCOUNT_URL = "https://$name.$location.batch.azure.com"
-$STORAGE_ACCOUNT_KEY = az storage account keys list -n $name --query [0].value
-$STORAGE_ACCOUNT_CONNECTION_STRING= az storage account show-connection-string --name $name --query connectionString
+$env:BATCH_ACCOUNT_NAME = $name
+$env:BATCH_ACCOUNT_KEY =  az batch account keys list -n $name -g $name --query primary
+$env:BATCH_ACCOUNT_URL = "https://$name.$location.batch.azure.com"
+$env:STORAGE_ACCOUNT_KEY = az storage account keys list -n $name --query [0].value
+$env:STORAGE_ACCOUNT_CONNECTION_STRING= (az storage account show-connection-string --name $name --query connectionString)-replace '"',''
 ```
 
 #### Bash
