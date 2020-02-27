@@ -187,9 +187,9 @@ docker build -t sum-of-powers:v1 .
 az login
 az acr login --name myownprivateregistry
 # tag the local image
-docker tag sum-of-powers:v4 myownprivateregistry.azurecr.io/sum-of-powers:v4
+docker tag sum-of-powers:v1 myownprivateregistry.azurecr.io/sum-of-powers:v1
 # push the image to the private registry
-docker push myownprivateregistry.azurecr.io/sum-of-powers:v4
+docker push myownprivateregistry.azurecr.io/sum-of-powers:v1
 ```
 
 ### Step 3: Write the controller
@@ -408,10 +408,10 @@ following credentials:
 ```ps1
 $AZURE_CR_NAME = "MyOwnPrivateRegistry"
 # only required once:
-az acr update -n %AZURE_CR_NAME% --admin-enabled true
-$REGISTRY_SERVER = az acr show -n %AZURE_CR_NAME% --query loginServer
-$REGISTRY_USERNAME = az acr credential show -n %AZURE_CR_NAME% --query username
-$REGISTRY_PASSWORD = az acr credential show -n %AZURE_CR_NAME% --query passwords[0].value
+az acr update -n $AZURE_CR_NAME --admin-enabled true
+$REGISTRY_SERVER = az acr show -n $AZURE_CR_NAME --query loginServer
+$REGISTRY_USERNAME = az acr credential show -n $AZURE_CR_NAME --query username
+$REGISTRY_PASSWORD = az acr credential show -n $AZURE_CR_NAME --query passwords[0].value
 ```
 
 #### Bash
