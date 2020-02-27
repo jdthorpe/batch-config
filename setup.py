@@ -65,9 +65,9 @@ setup(
     ],
     python_requires=">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*",
     install_requires=[
-        "azure-batch==8.0.0",
-        "azure-storage-blob==12.0.0",
-        "jsonschema==3.2.0",
+        "azure-batch>=8.0.0",
+        "azure-storage-blob>=12.2.0",
+        "jsonschema>=3.2.0",
     ],
     extras_require={
         # eg:
