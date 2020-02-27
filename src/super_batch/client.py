@@ -235,9 +235,6 @@ class Client:
         )
 
         # Create the pool
-        import pdb
-
-        pdb.set_trace()
         self.batch_client.pool.add(new_pool)
 
     def _create_job(self):
