@@ -57,7 +57,7 @@ Azure Batch.  Specifically:
     having to write custom scripts to configure the VMs which will run our
     code.
 
-## Overview of the solution:
+## Overview of the solution
 
 Azure batch is responsible for (1) loading our code into a computing
 environment, (2) loading the data that our code requires into the file
@@ -492,4 +492,3 @@ az group delete -n $name
 ```bat
 az group delete -n %name%
 ```
-
