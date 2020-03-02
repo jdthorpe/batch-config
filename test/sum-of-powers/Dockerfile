@@ -10,5 +10,4 @@ RUN pip install --upgrade pip \
 	&& pip install numpy joblib
 
 # COPY THE WORKER FILE INTO THE DOCKER FILE
-COPY worker.py .
-COPY constants.py .
+COPY task.py constants.py worker.py ./

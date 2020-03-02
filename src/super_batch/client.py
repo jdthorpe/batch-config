@@ -227,6 +227,7 @@ class Client:
         :param str sku: Marketplace image sku
         """
         if self.config.REGISTRY_SERVER:
+            print("Using a private registry")
             registry = models.ContainerRegistry(
                 user_name=self.config.REGISTRY_USERNAME,
                 password=self.config.REGISTRY_PASSWORD,

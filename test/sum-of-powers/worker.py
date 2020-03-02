@@ -1,27 +1,23 @@
-""" the worker
+""" The main entry point for the worker task
 """
 # pylint: disable=invalid-name
 
-import numpy as np
 import joblib
-from constants import GLOBAL_CONFIG_FILE, WORKER_INPUTS_FILE, WORKER_OUTPUTS_FILE
-
+from constants import GLOBAL_RESOURCE_FILE, TASK_RESOURCE_FILE, TASK_OUTPUT_FILE
+from task import task
 
 # read the designated global config and iteration parameter files
-print("reading in config files...",end="")
-global_config = joblib.load(GLOBAL_CONFIG_FILE)
-parameters = joblib.load(WORKER_INPUTS_FILE)
+print("reading in config files...", end="")
+global_parameters = joblib.load(GLOBAL_RESOURCE_FILE)
+task_parameters = joblib.load(TASK_RESOURCE_FILE)
 print("DONE")
 
 # do the work
-print("Doing work...",end="")
-np.random.seed(parameters["seed"])
-out = sum(
-    np.power(np.random.uniform(size=global_config["size"]), global_config["power"])
-)
+print("Doing work...", end="")
+output = task(global_parameters, task_parameters)
 print("DONE")
 
 # write the results to the designated output file
-print("Writing outputs...",end="")
-joblib.dump(out, WORKER_OUTPUTS_FILE)
+print("Writing outputs ({})...".format(output), end="")
+joblib.dump(output, TASK_OUTPUT_FILE)
 print("DONE")

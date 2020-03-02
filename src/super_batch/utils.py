@@ -14,6 +14,7 @@ from .print_progress import _print_progress
 
 # pylint: disable=bad-continuation, line-too-long, invalid-name
 
+
 def _print_batch_exception(batch_exception):
     """
     Prints the contents of the specified Batch exception.
@@ -70,17 +71,14 @@ def _wait_for_tasks_to_complete(batch_service_client, job_id, timeout):
         )
 
         error_codes = [
-            t.execution_info.exit_code
-            for t in tasks
+            "   Task {} exited with code {}".format(i, t.execution_info.exit_code)
+            for i, t in enumerate(tasks)
             if t.execution_info and t.execution_info.exit_code
         ]
-        if error_codes:
-            codes = defaultdict(lambda: 0)
-            for cd in error_codes:
-                codes[cd] += 1
+        if len(error_codes):
             raise RuntimeError(
-                "\nSome tasks have exited with a non-zero exit code including: "
-                + ", ".join(["{}({})".format(k, v) for k, v in codes.items()])
+                "\nSome tasks have exited with a non-zero exit code including:\n"
+                + "\n".join(error_codes)
             )
         if not incomplete_tasks:
             print()

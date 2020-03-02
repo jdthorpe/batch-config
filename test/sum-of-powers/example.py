@@ -1,18 +1,18 @@
 """
 """
 import numpy as np
+from task import task
 
 # SET GLOBAL PARAMETERS
-POWER = 3
-SIZE = (10,)
-SEEDS = (1, 12, 123, 1234)
+global_parameters = {"power": 3, "size": (10,)}
 
-out = np.zeros((len(SEEDS),))
-for i, seed in enumerate(SEEDS): # DEFINE LOOPING PARAMETERS
+results = []
+SEEDS = (1, 12, 123, 1234)
+for seed in SEEDS:
+    task_parameters = {"seed": seed}
+
     # DO WORK
-    np.random.seed(seed)
-    tmp = np.random.uniform(size=SIZE)
-    out[i] = sum(np.power(tmp, POWER))
+    results.append(task(global_parameters, task_parameters))
 
 # AGGREGATE INTERMEDIATE STATISTICS
-print(sum(out))
+print(sum(results))
