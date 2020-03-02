@@ -1,66 +1,84 @@
-""" conroller for the example
-"""
-# pylint: disable=invalid-name
-import os
+from os.path import join, expanduser
 import datetime
 import pathlib
-import numpy  # pylint: disable=unused-import
 import joblib
 import super_batch
+
 from constants import (
     GLOBAL_CONFIG_FILE,
-    WORKER_INPUTS_FILE,
-    WORKER_OUTPUTS_FILE,
-    LOCAL_INPUTS_PATTERN,
-    LOCAL_OUTPUTS_PATTERN,
+    TASK_RESOURCE_FILE,
+    TASK_OUTPUT_FILE,
+    LOCAL_RESOURCE_PATTERN,
+    LOCAL_OUTPUT_PATTERN,
 )
 
+# ------------------------------
+# DEFINE CONSTANTS
+# ------------------------------
 
-# --------------------------------------------------
-# CONSTANTS
-# --------------------------------------------------
-_TIMESTAMP: str = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
-BATCH_DIRECTORY: str = os.path.expanduser("~/temp/super-batch-test-again")
-NAME: str = "superbatchtest"
+# The `$name` of our created resources:
+NAME = "superbatchtest"
+
+# a local directory where temporary files will be stored:
+BATCH_DIRECTORY = expanduser("~/temp/super-batch-test")
 pathlib.Path(BATCH_DIRECTORY).mkdir(parents=True, exist_ok=True)
 
-batch_client = super_batch.Client(
+# CONSTANTS:
+# used to generate unique task names:
+_TIMESTAMP = datetime.datetime.utcnow().strftime("%Y%m%d%H%M%S")
+
+# INSTANTIATE THE BATCH HELPER CLIENT:
+batch_client = super_batch.client(
     POOL_ID=NAME,
     JOB_ID=NAME + _TIMESTAMP,
     POOL_VM_SIZE="STANDARD_A1_v2",
     POOL_NODE_COUNT=0,
-    POOL_LOW_PRIORITY_NODE_COUNT=1,
+    POOL_LOW_PRIORITY_NODE_COUNT=2,
     DELETE_POOL_WHEN_DONE=False,
     BLOB_CONTAINER_NAME=NAME,
     BATCH_DIRECTORY=BATCH_DIRECTORY,
-    DOCKER_IMAGE=os.environ.get("image_name"),
+    DOCKER_IMAGE="myusername/sum-of-powers:v1",
     COMMAND_LINE="python /worker.py",
 )
 
+# ------------------------------
+# BUILD THE GLOBAL PARAMETERS
+# ------------------------------
 
-# --------------------------------------------------
-# BUILD THE GLOBAL PARAMETER RESOURCE
-# --------------------------------------------------
+# <<< Your code goes below >>>
 global_parameters = {"power": 3, "size": (10,)}
-joblib.dump(global_parameters, os.path.join(BATCH_DIRECTORY, GLOBAL_CONFIG_FILE))
+# <<< Your code goes above >>>
+
+# WRITE THE GLOBAL PARAMETERS RESOURCE TO DISK
+joblib.dump(global_parameters, join(BATCH_DIRECTORY, GLOBAL_CONFIG_FILE))
+
+# UPLOAD THE TASK RESOURCE
 global_parameters_resource = batch_client.build_resource_file(
     GLOBAL_CONFIG_FILE, GLOBAL_CONFIG_FILE
 )
 
-# --------------------------------------------------
+# ------------------------------
 # BUILD THE BATCH TASKS
-# --------------------------------------------------
+# ------------------------------
 
+# <<< Your code goes below >>>
 SEEDS = (1, 12, 123, 1234)
 for i, seed in enumerate(SEEDS):
-    # CREATE THE ITERATION PAREMTERS RESOURCE
-    param_file = LOCAL_INPUTS_PATTERN.format(i)
-    joblib.dump({"seed": seed}, os.path.join(BATCH_DIRECTORY, param_file))
-    input_resource = batch_client.build_resource_file(param_file, WORKER_INPUTS_FILE)
+    parameters = {"seed": seed}
+    # <<< Your code goes above >>>
+
+    # WRITE THE RESOURCE TO DISK
+    local_resource_file = LOCAL_RESOURCE_PATTERN.format(i)
+    joblib.dump(parameters, join(BATCH_DIRECTORY, local_resource_file))
+
+    # UPLOAD THE TASK RESOURCE
+    input_resource = batch_client.build_resource_file(
+        local_resource_file, TASK_RESOURCE_FILE
+    )
 
     # CREATE AN OUTPUT RESOURCE
     output_resource = batch_client.build_output_file(
-        WORKER_OUTPUTS_FILE, LOCAL_OUTPUTS_PATTERN.format(i)
+        LOCAL_OUTPUT_FILE, LOCAL_OUTPUT_PATTERN.format(i)
     )
 
     # CREATE A TASK
@@ -68,17 +86,20 @@ for i, seed in enumerate(SEEDS):
         [input_resource, global_parameters_resource], [output_resource]
     )
 
-# --------------------------------------------------
+# ------------------------------
 # RUN THE BATCH JOB
-# --------------------------------------------------
+# ------------------------------
+
 batch_client.run()
 
-# --------------------------------------------------
-# AGGREGATE INTERMEDIATE STATISTICS
-# --------------------------------------------------
-out = [None] * len(SEEDS)
-for i in range(len(SEEDS)):
-    fpath = os.path.join(BATCH_DIRECTORY, LOCAL_OUTPUTS_PATTERN.format(i))
-    out[i] = joblib.load(fpath)
+# ------------------------------
+# AGGREGATE THE RESULTS
+# ------------------------------
 
-print(sum(out))
+task_results = []
+for task in batch_client.tasks:
+    task_results.append(joblib.load(task.something))
+
+# <<< Your code goes below >>>
+print(sum(task_results))
+# <<< Your code goes above >>>

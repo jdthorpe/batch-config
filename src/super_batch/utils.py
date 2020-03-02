@@ -1,7 +1,3 @@
-"""
-general helper utils
-"""
-# pylint: disable=bad-continuation, line-too-long, invalid-name
 import io
 import time
 import sys
@@ -14,10 +10,11 @@ from azure.storage.blob import (
     BlobSasPermissions,
 )
 from azure.batch.models import TaskState
-from .print_progress import print_progress
+from .print_progress import _print_progress
 
+# pylint: disable=bad-continuation, line-too-long, invalid-name
 
-def print_batch_exception(batch_exception):
+def _print_batch_exception(batch_exception):
     """
     Prints the contents of the specified Batch exception.
     :param batch_exception:
@@ -37,7 +34,7 @@ def print_batch_exception(batch_exception):
     print("-------------------------------------------")
 
 
-def wait_for_tasks_to_complete(batch_service_client, job_id, timeout):
+def _wait_for_tasks_to_complete(batch_service_client, job_id, timeout):
     """
     Returns when all tasks in the specified job reach the Completed state.
 
@@ -62,7 +59,7 @@ def wait_for_tasks_to_complete(batch_service_client, job_id, timeout):
 
         hours, remainder = divmod((datetime.datetime.now() - _start_time).seconds, 3600)
         minutes, seconds = divmod(remainder, 60)
-        print_progress(
+        _print_progress(
             len(tasks) - len(incomplete_tasks),
             len(tasks),
             prefix="Time elapsed {:02}:{:02}:{:02}".format(
@@ -97,7 +94,7 @@ def wait_for_tasks_to_complete(batch_service_client, job_id, timeout):
     )
 
 
-def read_stream_as_string(stream, encoding):
+def _read_stream_as_string(stream, encoding):
     """Read stream as string
     :param stream: input stream generator
     :param str encoding: The encoding of the file. The default is utf-8.

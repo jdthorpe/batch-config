@@ -1,8 +1,3 @@
-# pylint: disable=invalid-name
-"""
-configuration for azure batch
-"""
-
 import os
 from typing import NamedTuple, Optional
 from jsonschema import validate
@@ -10,7 +5,7 @@ from jsonschema import validate
 # ------------------------------
 # Fail Faster
 # ------------------------------
-CONFIG_SCHEMA = {
+_CONFIG_SCHEMA = {
     "type": "object",
     "properties": {
         "BATCH_ACCOUNT_NAME": {"type": "string"},
@@ -96,7 +91,7 @@ class _BatchConfig(NamedTuple):
         get the attributes from this object which don't contain permissions
         """
         out = {}
-        for k in clean_keys:
+        for k in _clean_keys:
             try:
                 v = getattr(self, k)
             except AttributeError:
@@ -111,7 +106,7 @@ class _BatchConfig(NamedTuple):
         return "https://{}".format(self.BATCH_ACCOUNT_ENDPOINT)
 
 
-clean_keys = (
+_clean_keys = (
     "POOL_ID",
     "JOB_ID",
     "POOL_VM_SIZE",
@@ -133,7 +128,31 @@ clean_keys = (
 
 
 def BatchConfig(**kwargs):
-    """ Azure Batch Configuration
+    """
+    Provides an interface for preparing, running, and pulling down data from an Azure Batch job
+
+    Args:
+        BATCH_DIRECTORY (string): Local directory in which input and output files should be placed
+        BATCH_ACCOUNT_NAME (string): Batch account name. Taken from the environment when not provided
+        BATCH_ACCOUNT_KEY (string): Batch account key. Taken from the environment when not provided
+        BATCH_ACCOUNT_ENDPOINT (string): Batch account endpoint. Taken from the environment when not provided
+        JOB_ID (string): Name for the Batch Job
+        STORAGE_ACCOUNT_NAME (string): Storage Account name
+        STORAGE_ACCOUNT_KEY (string): Stoarge account key. Taken from the environment when not provided
+        STORAGE_ACCOUNT_CONNECTION_STRING (string): Storage account access connection string. Taken from the environment when not provided
+        STORAGE_ACCESS_DURATION_HRS (int): Time in hours that the generated the storage access token will be valid for
+        BLOB_CONTAINER_NAME (string): Name for the blob storage container
+        POOL_ID (string): Pool Id
+        POOL_NODE_COUNT (int): Count for normal priority nodes in the batch pool. Only used when createing a pool.  **Ignored if the pool already exists**
+        POOL_LOW_PRIORITY_NODE_COUNT (int): Count for low priority nodes in the batch pool.    **Ignored if the pool already exists**
+        POOL_VM_SIZE (string): VM name (See the FAQ for details)
+        DOCKER_IMAGE (string): name of the docker image
+        REGISTRY_SERVER (string, optional): Used when the docker image is hosted on a private repository. Taken from the environment when not provided
+        REGISTRY_USERNAME (string, optional): Used when the docker image is hosted on a private repository. Taken from the environment when not provided
+        REGISTRY_PASSWORD (string, optional): Used when the docker image is hosted on a private repository. Taken from the environment when not provided
+        DELETE_POOL_WHEN_DONE (boolean): Should the batch pool be deleted when the job has been completed? Default `False`
+        DELETE_JOB_WHEN_DONE (boolean): Should the batch job be deleted when the job has been completed? Default `False`
+        DELETE_CONTAINER_WHEN_DONE (boolean): should the blob storage container be deleted when the job has been completed? Default `False`
     """
     return _validate(_BatchConfig(**kwargs))
 
@@ -148,7 +167,7 @@ def _validate(x):
             del _config[_key]
     __env_config = _ENV_CONFIG.copy()
     __env_config.update(_config)
-    validate(__env_config, CONFIG_SCHEMA)
+    validate(__env_config, _CONFIG_SCHEMA)
     return _BatchConfig(**__env_config)
 
 

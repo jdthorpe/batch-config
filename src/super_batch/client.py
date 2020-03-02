@@ -3,7 +3,7 @@ usage requires these additional modules
 """
 # pylint: disable=bad-continuation, invalid-name, protected-access, line-too-long, fixme
 
-from __future__ import print_function
+from __future__ import print_function, annotations
 from typing import Tuple, List
 import datetime
 import os
@@ -24,9 +24,9 @@ import azure.batch.models as models
 
 from .BatchConfig import _BatchConfig, BatchConfig
 from .utils import (
-    print_batch_exception,
-    wait_for_tasks_to_complete,
-    read_stream_as_string,
+    _print_batch_exception,
+    _wait_for_tasks_to_complete,
+    _read_stream_as_string,
 )
 
 
@@ -34,7 +34,7 @@ from .utils import (
 # Marketplace image. For more information about creating pools of Linux
 # nodes, see:
 # https://azure.microsoft.com/documentation/articles/batch-linux-nodes/
-IMAGE_REF = models.ImageReference(
+_IMAGE_REF = models.ImageReference(
     publisher="microsoft-azure-batch",
     offer="ubuntu-server-container",
     sku="16-04-lts",
@@ -43,7 +43,10 @@ IMAGE_REF = models.ImageReference(
 
 
 class Client:
-    """ convenience class
+    """ SuperBatch Client
+
+    Provides an interface for preparing, running, and pulling down data from an Azure Batch job
+
     """
 
     config: _BatchConfig
@@ -56,13 +59,13 @@ class Client:
 
     @property
     def data(self):
-        """ return data for persisting the object
+        """ Generate data for persisting the configuration
         """
         return {"config": self.config.clean, "output_files": self.output_files}
 
     @staticmethod
     def from_data(data):
-        """ restore the object from the stored data
+        """ Restore configuration from data
         """
         out = Client(**data["config"])
         out.output_files = data["output_files"]
@@ -70,9 +73,22 @@ class Client:
         del out.tasks
         return out
 
-    def __init__(self, image=IMAGE_REF, **kwargs):
-
-        self.image = image
+    def __init__(self, image=None, **kwargs):
+        """
+        Args:
+            image (azure.batch.models.ImageReference): The VM image to use for the pool nodes
+                defaults to
+                ```python
+                azure.batch.models.ImageReference(
+                    publisher="microsoft-azure-batch",
+                    offer="ubuntu-server-container",
+                    sku="16-04-lts",
+                    version="latest",
+                )
+                ```
+            **kwargs: Additinal arguments passed to :class:`super_barch.BatchConfig`
+        """
+        self.image = image if image is not None else _IMAGE_REF
         self.config = BatchConfig(**kwargs)
         self.output_files = []
         self.tasks = []
@@ -111,17 +127,18 @@ class Client:
             batch_url=self.config.BATCH_ACCOUNT_URL,
         )
 
-    def build_resource_file(self, file_path, container_path: str, duration_hours=24):
+    def build_resource_file(
+        self, file_path: str, container_path: str, duration_hours: int = 24
+    ) -> azure.batch.models.ResourceFile:
         """
         Uploads a local file to an Azure Blob storage container.
 
-        :param str file_path: The local path to the file.
-        :param str container_path: The path where the file should be placed in the container before executing the task
-        :rtype: `azure.batch.models.ResourceFile`
-        :return: A ResourceFile initialized with a SAS URL appropriate for Batch
-        tasks.
+        Args:
+            file_path: The local path to the file.
+            container_path: The path where the file should be placed in the container before executing the task
+        Returns:
+             A ResourceFile initialized with a SAS URL appropriate for Batch tasks.
         """
-        # print( "Uploading file {} to container [{}]...".format( file_path, self.config.BLOB_CONTAINER_NAME)),
         blob_name = os.path.basename(file_path)
         blob_client = self.container_client.get_blob_client(blob_name)
 
@@ -147,16 +164,18 @@ class Client:
             http_url=blob_client.url + "?" + sas_token, file_path=container_path
         )
 
-    def build_output_file(self, output_file, container_path):
+    def build_output_file(
+        self, output_file, container_path
+    ) -> azure.batch.models.ResourceFile:
         """
         Uploads a local file to an Azure Blob storage container.
 
-        :param str output_file: the name of the file produced as the output by the task
-        :param str container_path: the name of the file in the container
+        Args:
+            output_file: the name of the file produced as the output by the task
+            container_path: the name of the file in the container
 
-        :rtype: `azure.batch.models.ResourceFile`
-        :return: A ResourceFile initialized with a SAS URL appropriate for Batch
-        tasks.
+        Returns: 
+            A ResourceFile initialized with a SAS URL appropriate for Batch tasks.
         """
 
         # where to store the outputs
@@ -225,7 +244,7 @@ class Client:
         new_pool = models.PoolAddParameter(
             id=self.config.POOL_ID,
             virtual_machine_configuration=models.VirtualMachineConfiguration(
-                image_reference=IMAGE_REF,
+                image_reference=_IMAGE_REF,
                 container_configuration=container_conf,
                 node_agent_sku_id="batch.node.ubuntu 16.04",
             ),
@@ -252,11 +271,12 @@ class Client:
         """
         Adds a task for each input file in the collection to the specified job.
 
-        :param list resource_files: A list of ResouceFile descriptions for the task
-        :param list output_files: A list of OutputFile descriptions for the task
-        :param str command_line: The command used to for the task.  Optional;
-            if missing, defaults to the command_line parameter provided when
-            instantiating this object
+        Args: 
+            resource_files: A list of ResouceFile descriptions for the task
+            output_files: A list of OutputFile descriptions for the task
+            command_line: The command used to for the task.  Optional;
+                if missing, defaults to the command_line parameter provided when
+                instantiating this object
         """
         self.tasks.append(
             models.TaskAddParameter(
@@ -292,15 +312,14 @@ class Client:
             with open(download_file_path, "wb") as download_file:
                 download_file.write(blob_client.download_blob().readall())
 
-    def run(self, wait=True, **kwargs) -> None:
-        r"""
-        :param config: A :class:`BatchConfig` instance with the Azure Batch run parameters
-        :type config: :class:BatchConfig
+    def run(self, wait: bool = True, **kwargs) -> None:
+        """ Run the Batch Job
+        wait: If true, wait for the batch to complete and then download the
+            results to file by calling `self.load_results()` after loading
+            all the tasks to the job.
 
-        :param boolean wait: If true, wait for the batch to complete and then
-                download the results to file
-
-        :raises BatchErrorException: If raised by the Azure Batch Python SDK
+        Raises:
+            BatchErrorException: If raised by the Azure Batch Python SDK
         """
         # replace any missing values in the configuration with environment variables
 
@@ -337,7 +356,7 @@ class Client:
             self.batch_client.task.add_collection(self.config.JOB_ID, self.tasks)
 
         except models.BatchErrorException as err:
-            print_batch_exception(err)
+            _print_batch_exception(err)
             raise err
 
         if wait:
@@ -359,14 +378,14 @@ class Client:
 
         try:
             # Pause execution until tasks reach Completed state.
-            wait_for_tasks_to_complete(
+            _wait_for_tasks_to_complete(
                 self.batch_client,
                 self.config.JOB_ID,
                 datetime.timedelta(hours=self.config.STORAGE_ACCESS_DURATION_HRS),
             )
             self._download_files()
         except models.BatchErrorException as err:
-            print_batch_exception(err)
+            _print_batch_exception(err)
             raise err
 
         # Print out some timing info
@@ -384,7 +403,6 @@ class Client:
 
     def print_task_output(self, encoding=None):
         """ Utilty method: Prints the stdout.txt file for each task in the job.
-        # TODO: not sure if this works any more with jump to version 8 of the batch client
         """
 
         print("Printing task output...")
@@ -401,4 +419,4 @@ class Client:
                 self.config.JOB_ID, task.id, "stdout.txt"
             )
             print("Standard output:")
-            print(read_stream_as_string(stream, encoding))
+            print(_read_stream_as_string(stream, encoding))
