@@ -245,9 +245,9 @@ class Client:
         new_pool = models.PoolAddParameter(
             id=self.config.POOL_ID,
             virtual_machine_configuration=models.VirtualMachineConfiguration(
-                image_reference=_IMAGE_REF,
+                image_reference=self.image,
                 container_configuration=container_conf,
-                node_agent_sku_id="batch.node.ubuntu 16.04",
+                node_agent_sku_id=f"batch.node.ubuntu {self.image.sku.removesuffix('-lts').replace('-','.')}",
             ),
             vm_size=self.config.POOL_VM_SIZE,
             target_dedicated_nodes=self.config.POOL_NODE_COUNT,
