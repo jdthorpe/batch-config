@@ -21,7 +21,7 @@ def read(*names, **kwargs):
 
 setup(
     name="batch_config",
-    version="1.564.11",
+    version="1.564.12",
     license="BSD-2-Clause",
     description="Convenience wrappers for running batch jobs in python",
     author="Jason Thorpe",
