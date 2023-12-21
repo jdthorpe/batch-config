@@ -34,6 +34,7 @@ _CONFIG_SCHEMA = {
         },
         "BATCH_DIRECTORY": {"type": "string"},
         "DOCKER_IMAGE": {"type": "string"},
+        "SUBNET_ID": {"type":"string"},
     },
     "required": [
         "POOL_ID",
@@ -83,6 +84,7 @@ class _BatchConfig(NamedTuple):
     REGISTRY_SERVER: Optional[str] = None
     REGISTRY_USERNAME: Optional[str] = None
     REGISTRY_PASSWORD: Optional[str] = None
+    SUBNET_ID: Optional[str] = None
     COMMAND_LINE: Optional[str] = None
 
     @property
@@ -123,6 +125,7 @@ _clean_keys = (
     "STORAGE_ACCOUNT_CONNECTION_STRING",
     "STORAGE_ACCESS_DURATION_HRS",
     "REGISTRY_SERVER",
+    "SUBNET_ID",
     "COMMAND_LINE",
 )
 
@@ -151,6 +154,7 @@ def BatchConfig(**kwargs):
         REGISTRY_USERNAME (string, optional): Used when the docker image is hosted on a private repository. Taken from the environment when not provided
         REGISTRY_PASSWORD (string, optional): Used when the docker image is hosted on a private repository. Taken from the environment when not provided
         DELETE_POOL_WHEN_DONE (boolean): Should the batch pool be deleted when the job has been completed? Default `False`
+        SUBNET_ID (string): Name of the subnet under which the batch pool should be created
         DELETE_JOB_WHEN_DONE (boolean): Should the batch job be deleted when the job has been completed? Default `False`
         DELETE_CONTAINER_WHEN_DONE (boolean): should the blob storage container be deleted when the job has been completed? Default `False`
     """
