@@ -241,13 +241,19 @@ class Client:
             container_conf = models.ContainerConfiguration(
                 container_image_names=[self.config.DOCKER_IMAGE]
             )
+        
+        network_configuration = None
+        if self.config.SUBNET_ID:
+            network_configuration = models.NetworkConfiguration(subnet_id=self.config.SUBNET_ID)
 
+        # Create the pool
         new_pool = models.PoolAddParameter(
             id=self.config.POOL_ID,
             virtual_machine_configuration=models.VirtualMachineConfiguration(
                 image_reference=self.image,
                 container_configuration=container_conf,
                 node_agent_sku_id=f"batch.node.ubuntu {self.image.sku.removesuffix('-lts').replace('-','.')}",
+                network_configuration=network_configuration
             ),
             vm_size=self.config.POOL_VM_SIZE,
             target_dedicated_nodes=self.config.POOL_NODE_COUNT,
@@ -356,9 +362,18 @@ class Client:
             # Add the tasks to the job.
             self.batch_client.task.add_collection(self.config.JOB_ID, self.tasks)
 
+            # if wait we wait till the results are ready
+            if wait:
+                self.load_results(**kwargs)
+
         except models.BatchErrorException as err:
             _print_batch_exception(err)
             raise err
+        
+        finally:
+            # we cleanup only if we are not waiting for the results.
+            if wait:
+                self._cleanup_batch_resources()
 
         if wait:
             self.load_results(**kwargs)
@@ -388,19 +403,23 @@ class Client:
         except models.BatchErrorException as err:
             _print_batch_exception(err)
             raise err
+        finally:
+             # Print out some timing info
+            if not quiet:
+                end_time = datetime.datetime.now().replace(microsecond=0)
+                print("End time: {}".format(end_time))
 
-        # Print out some timing info
-        if not quiet:
-            end_time = datetime.datetime.now().replace(microsecond=0)
-            print("End time: {}".format(end_time))
 
-        # Clean up Batch resources (if the user so chooses).
+    def _cleanup_batch_resources(self):
+        """
+        Clean up Batch resources (if the user so chooses).
+        """
         if self.config.DELETE_POOL_WHEN_DONE:
             self.batch_client.pool.delete(self.config.POOL_ID)
         if self.config.DELETE_JOB_WHEN_DONE:
             self.batch_client.job.delete(self.config.JOB_ID)
         if self.config.DELETE_CONTAINER_WHEN_DONE:
-            self.container_client.delete_container()
+            self.container_client.delete_container() 
 
     def print_task_output(self, encoding=None):
         """ Utilty method: Prints the stdout.txt file for each task in the job.
